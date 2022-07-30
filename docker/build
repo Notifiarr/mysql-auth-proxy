@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# This should run local to the Dockerfile folder, so the to run from is path is ..
+pushd ..
+
+DOCKER_REPO=golift/mysql-auth-proxy
+TAGS="$TAGS --tag ${DOCKER_REPO}:latest"
+
+read -r -d '' CMD << EOF 
+ docker buildx build --push ${TAGS} \
+  --platform linux/arm/v7,linux/arm64/v8,linux/amd64 \
+  --build-arg "BUILD_FLAGS" \
+  --file docker/Dockerfile .
+EOF
+
+echo "Running command: ${CMD}"
+eval $CMD
+
+popd
