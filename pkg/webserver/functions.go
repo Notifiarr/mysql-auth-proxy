@@ -15,7 +15,7 @@ const (
 
 // parseKey attempts to get the key from either the url (mux vars), or two different headers.
 func parseKey(req *http.Request) string {
-	if key := mux.Vars(req)["key"]; len(key) == keyLength {
+	if key := mux.Vars(req)[apiKey]; len(key) == keyLength {
 		return key // deprecate this.
 	} else if key = req.Header.Get("X-API-Key"); len(key) == keyLength {
 		return key
@@ -28,13 +28,12 @@ func parseKey(req *http.Request) string {
 
 // parseAPIKey sets a valid-lengh api key to a mux var.
 // or returns a 401 if no key is found.
-func parseAPIKey(next http.Handler) http.Handler {
+func (s *server) parseAPIKey(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		if key := parseKey(req); len(key) != keyLength {
-			noKeyReply(resp, req) // bad key, bail out.
+			s.noKeyReply(resp, req) // bad key, bail out.
 		} else {
-			mux.SetURLVars(req, map[string]string{apiKey: key})
-			next.ServeHTTP(resp, req)
+			next.ServeHTTP(resp, mux.SetURLVars(req, map[string]string{apiKey: key}))
 		}
 	})
 }

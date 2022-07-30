@@ -11,7 +11,7 @@ import (
 
 const (
 	getUserQuery = "SELECT `developmentEnv`,`environment`,`name`,`id` FROM `users` WHERE `apikey`='%[1]s' " +
-		"OR `id`=(SELECT `user_id` FROM `apikeys` WHERE `apikey`='%[1]s' LIMIT 1);"
+		"OR `id`=(SELECT `user_id` FROM `apikeys` WHERE `apikey`='%[1]s' LIMIT 1) LIMIT 1;"
 )
 
 // Default user values.
@@ -29,7 +29,7 @@ type Config struct {
 	Name string `toml:"name" xml:"name"`
 }
 
-// UI provides an intoerface to query a database for user info.
+// UI provides an interface to query a database for user info.
 type UI struct {
 	config *Config
 	dbase  *sql.DB
@@ -42,9 +42,10 @@ type UserInfo struct {
 	UserID      string `json:"userId"`
 }
 
-// Errors returns by this package.
+// Errors returned by this package.
 var (
 	ErrNoConfig = fmt.Errorf("config must contain all fields")
+	ErrNoUser   = fmt.Errorf("user not found")
 )
 
 // New returns a User Info interface.
@@ -118,17 +119,17 @@ func (u *UI) GetInfo(ctx context.Context, requestKey string) (*UserInfo, error) 
 
 	user := DefaultUser()
 	if !rows.Next() {
-		return user, nil
+		return user, ErrNoUser // must return default user on error.
 	}
 
-	var devAllowed string
+	devAllowed := "0"
 
 	err = rows.Scan(&devAllowed, &user.Environment, &user.Username, &user.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("scanning database rows: %w", err)
 	}
 
-	if devAllowed == "0" {
+	if devAllowed != "1" {
 		user.Environment = DefaultEnvironment
 	}
 

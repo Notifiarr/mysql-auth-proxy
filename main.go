@@ -18,13 +18,12 @@ func main() {
 
 	pass := os.Getenv("MYSQL_PASS")
 	if fileName := os.Getenv("MYSQL_PASS_FILE"); pass == "" && fileName != "" {
-		b, err := ioutil.ReadFile(fileName)
+		fileData, err := ioutil.ReadFile(fileName)
 		if err != nil {
-			log.Printf("ERROR: %v", err)
-			return
+			log.Fatalf("ERROR: %v", err)
 		}
 
-		pass = string(bytes.TrimSpace(b))
+		pass = string(bytes.TrimSpace(fileData))
 	}
 
 	config := &webserver.Config{
@@ -38,6 +37,6 @@ func main() {
 	}
 
 	if err := webserver.Start(config); err != nil {
-		log.Printf("ERROR: %v", err)
+		log.Fatalf("ERROR: %v", err)
 	}
 }

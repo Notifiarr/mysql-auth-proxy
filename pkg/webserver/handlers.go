@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Notifiarr/mysql-auth-proxy/pkg/userinfo"
 	"github.com/gorilla/mux"
 )
 
@@ -23,7 +24,12 @@ func (s *server) handleKey(resp http.ResponseWriter, req *http.Request) {
 	resp.Header().Add("X-UserID", userInfo.UserID)
 	resp.Header().Add("Age", strconv.Itoa(int((time.Since(userInfo.Cached).Seconds()))))
 	resp.Header().Add("X-Request-Time", time.Since(start).Round(time.Millisecond).String())
-	resp.WriteHeader(http.StatusOK)
+
+	if userInfo.UserID == userinfo.DefaultUserID && err == nil {
+		s.noKeyReply(resp, req)
+	} else {
+		resp.WriteHeader(http.StatusOK)
+	}
 }
 
 func (s *server) handleDelKey(resp http.ResponseWriter, req *http.Request) {
@@ -44,10 +50,10 @@ func (s *server) handleDelKey(resp http.ResponseWriter, req *http.Request) {
 }
 
 // noKeyReply returns a 401.
-func noKeyReply(resp http.ResponseWriter, _ *http.Request) {
+func (s *server) noKeyReply(resp http.ResponseWriter, _ *http.Request) {
 	resp.WriteHeader(http.StatusUnauthorized)
 
-	if _, err := resp.Write([]byte("no key provided")); err != nil {
+	if _, err := resp.Write([]byte("invalid or no key provided")); err != nil {
 		log.Printf("[ERROR] writing response: %v", err)
 	}
 }

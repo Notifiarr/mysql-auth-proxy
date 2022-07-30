@@ -13,6 +13,12 @@ import (
 	apachelog "github.com/lestrrat-go/apache-logformat/v2"
 )
 
+//nolint:lll
+const (
+	// Apache Log format.
+	alFmt = `%{X-Forwarded-For}i "%{X-Username}o" %{X-UserID}o %t "%r" %>s %b "%{Referer}i" "%{User-agent}i" query:%{X-Request-Time}o req:%{ms}Tms age:%{Age}o`
+)
+
 // Config is the input data for the server.
 type Config struct {
 	ListenAddr       string `toml:"listen_addr" xml:"listen_addr"`
@@ -38,7 +44,7 @@ func Start(config *Config) error {
 
 	defer cache.Stop(false)
 
-	log.Println("Initialized Cached and MySQL successfully")
+	log.Println("Initialized Cache and MySQL successfully")
 	log.Printf("HTTP listening at: %s", config.ListenAddr)
 
 	server := &server{
@@ -52,16 +58,16 @@ func Start(config *Config) error {
 
 func (s *server) startWebServer() error {
 	s.router.Use(fixForwardedFor)
-	s.router.Use(parseAPIKey)
-	s.router.HandleFunc("/}", noKeyReply)
+	s.router.Use(s.parseAPIKey)
+	s.router.HandleFunc("/}", s.noKeyReply)
 	s.router.HandleFunc("/auth/", s.handleKey)
 	s.router.HandleFunc("/auth", s.handleKey)
 	s.router.HandleFunc("/auth/", s.handleDelKey).Methods(http.MethodDelete)
 	s.router.HandleFunc("/auth", s.handleDelKey).Methods(http.MethodDelete)
-	s.router.HandleFunc("/del/{key}", s.handleDelKey) // deprecate this.
+	s.router.HandleFunc("/del/{"+apiKey+"}", s.handleDelKey) // deprecate this.
 
-	//nolint:lll // Create pretty Apache-style logs.
-	apache, err := apachelog.New(`%{X-Forwarded-For}i "%{X-Username}o" %{X-UserID}o %t "%r" %>s %b "%{Referer}i" "%{User-agent}i" %{X-Request-Time}o %{ms}Tms`)
+	// Create pretty Apache-style logs.
+	apache, err := apachelog.New(alFmt)
 	if err != nil {
 		return fmt.Errorf("apache log problem: %w", err)
 	}

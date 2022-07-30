@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -93,7 +94,7 @@ func (c *Cache) userRequest(ctx context.Context, requestKey string) error {
 	}
 
 	userInfo, err := c.ui.GetInfo(ctx, requestKey)
-	if err != nil {
+	if err != nil && !errors.Is(err, userinfo.ErrNoUser) {
 		return fmt.Errorf("getting user info: %w", err)
 	}
 
