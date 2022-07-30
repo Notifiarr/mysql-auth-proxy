@@ -38,8 +38,8 @@ func Start(config *Config) error {
 
 	defer cache.Stop(false)
 
-	log.Println("Initialized Cached and MySQL Successfully")
-	log.Printf("HTTP Listening At: %s", config.ListenAddr)
+	log.Println("Initialized Cached and MySQL successfully")
+	log.Printf("HTTP listening at: %s", config.ListenAddr)
 
 	server := &server{
 		cache:  cache,
@@ -61,7 +61,7 @@ func (s *server) startWebServer() error {
 	s.router.HandleFunc("/del/{key}", s.handleDelKey) // deprecate this.
 
 	//nolint:lll // Create pretty Apache-style logs.
-	apache, err := apachelog.New(`%{X-Forwarded-For}i ${X-Username}o %{X-UserID}o %t "%r" %>s %b "%{Referer}i" "%{User-agent}i" %{X-Request-Time}o %{ms}Tms`)
+	apache, err := apachelog.New(`%{X-Forwarded-For}i "%{X-Username}o" %{X-UserID}o %t "%r" %>s %b "%{Referer}i" "%{User-agent}i" %{X-Request-Time}o %{ms}Tms`)
 	if err != nil {
 		return fmt.Errorf("apache log problem: %w", err)
 	}

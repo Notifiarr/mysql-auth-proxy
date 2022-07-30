@@ -68,6 +68,24 @@ server {
 }
 ```
 
+### Example Docker Compose
+
+```yaml
+  auth-proxy:
+    image: docker.io/golift/mysql-auth-proxy
+    container_name: auth
+    environment:
+      - MYSQL_HOST=mysqlhost:3306
+      - MYSQL_NAME=mysql_db
+      - MYSQL_USER=proxy
+      - MYSQL_PASS_FILE=/password
+    ports:
+      - 8080:8080
+    restart: unless-stopped
+    volumes:
+      - /home/swag/.mysqlsecret:/password:ro
+```
+
 ## Good Luck!
 
 This app is pretty small and lightweight. It can be cross compiled. It can be easily adapted to other uses of a MySQL auth proxy for Nginx.

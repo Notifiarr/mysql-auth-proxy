@@ -1,7 +1,6 @@
 package webserver
 
 import (
-	"log"
 	"net/http"
 	"strings"
 
@@ -38,15 +37,6 @@ func parseAPIKey(next http.Handler) http.Handler {
 			next.ServeHTTP(resp, req)
 		}
 	})
-}
-
-// noKeyReply returns a 401.
-func noKeyReply(resp http.ResponseWriter, _ *http.Request) {
-	resp.WriteHeader(http.StatusUnauthorized)
-
-	if _, err := resp.Write([]byte("no key provided")); err != nil {
-		log.Printf("[ERROR] writing response: %v", err)
-	}
 }
 
 // fixForwardedFor sets the X-Forwarded-For header to the client IP.

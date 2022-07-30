@@ -42,3 +42,12 @@ func (s *server) handleDelKey(resp http.ResponseWriter, req *http.Request) {
 		log.Printf("[ERROR] writing response: %v", err)
 	}
 }
+
+// noKeyReply returns a 401.
+func noKeyReply(resp http.ResponseWriter, _ *http.Request) {
+	resp.WriteHeader(http.StatusUnauthorized)
+
+	if _, err := resp.Write([]byte("no key provided")); err != nil {
+		log.Printf("[ERROR] writing response: %v", err)
+	}
+}
