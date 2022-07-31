@@ -73,9 +73,9 @@ func (c *Cache) GetUserInfo(ctx context.Context, requestKey string) (*UserInfo, 
 }
 
 // DelCacheKey removes a cached key and it's data.
-func (c *Cache) DelCacheKey(requestKey string) (*UserInfo, error) {
+func (c *Cache) DelCacheKey(requestKey string) *UserInfo {
 	c.req <- &req{key: requestKey, del: true}
 	ret := <-c.res
 
-	return ret.UserInfo, ret.error
+	return ret.UserInfo
 }

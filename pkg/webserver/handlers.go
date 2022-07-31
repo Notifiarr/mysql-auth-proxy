@@ -5,13 +5,15 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/Notifiarr/mysql-auth-proxy/pkg/cache"
 	"github.com/Notifiarr/mysql-auth-proxy/pkg/userinfo"
 	"github.com/gorilla/mux"
 )
 
-func (s *server) handleKey(resp http.ResponseWriter, req *http.Request) {
+func (s *server) handleGetKey(resp http.ResponseWriter, req *http.Request) {
 	start := time.Now()
 
 	userInfo, err := s.cache.GetUserInfo(req.Context(), mux.Vars(req)[apiKey])
@@ -19,11 +21,11 @@ func (s *server) handleKey(resp http.ResponseWriter, req *http.Request) {
 		log.Printf("[ERROR] %v", err)
 	}
 
-	resp.Header().Add("X-Environment", userInfo.Environment)
-	resp.Header().Add("X-Username", userInfo.Username)
-	resp.Header().Add("X-UserID", userInfo.UserID)
-	resp.Header().Add("Age", strconv.Itoa(int((time.Since(userInfo.Cached).Seconds()))))
-	resp.Header().Add("X-Request-Time", time.Since(start).Round(time.Millisecond).String())
+	resp.Header().Set("X-Environment", userInfo.Environment)
+	resp.Header().Set("X-Username", userInfo.Username)
+	resp.Header().Set("X-UserID", userInfo.UserID)
+	resp.Header().Set("Age", strconv.Itoa(int((time.Since(userInfo.Cached).Seconds()))))
+	resp.Header().Set("X-Request-Time", time.Since(start).Round(time.Millisecond).String())
 
 	if userInfo.UserID == userinfo.DefaultUserID && err == nil {
 		s.noKeyReply(resp, req)
@@ -34,17 +36,25 @@ func (s *server) handleKey(resp http.ResponseWriter, req *http.Request) {
 
 func (s *server) handleDelKey(resp http.ResponseWriter, req *http.Request) {
 	start := time.Now()
+	keys := strings.Split(mux.Vars(req)[apiKey], ",")
+	infos := make([]*cache.UserInfo, len(keys))
 
-	userInfo, err := s.cache.DelCacheKey(mux.Vars(req)[apiKey])
-	if err != nil {
-		log.Printf("[ERROR] deleting cached key: %v", err)
+	for idx, key := range keys {
+		infos[idx] = s.cache.DelCacheKey(key)
+		// Something is better than nothing.
+		if infos[idx].UserID != userinfo.DefaultUserID {
+			resp.Header().Set("X-UserID", infos[idx].UserID)
+			resp.Header().Set("X-Username", infos[idx].Username)
+		}
 	}
 
-	resp.Header().Add("Content-Type", "application/json")
-	resp.Header().Add("X-Request-Time", time.Since(start).Round(time.Millisecond).String())
+	resp.Header().Set("X-Environment", "deleted")
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Age", strconv.Itoa(len(infos)))
+	resp.Header().Set("X-Request-Time", time.Since(start).Round(time.Millisecond).String())
 	resp.WriteHeader(http.StatusOK)
 
-	if err := json.NewEncoder(resp).Encode(userInfo); err != nil {
+	if err := json.NewEncoder(resp).Encode(infos); err != nil {
 		log.Printf("[ERROR] writing response: %v", err)
 	}
 }

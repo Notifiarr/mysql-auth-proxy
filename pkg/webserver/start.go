@@ -13,10 +13,10 @@ import (
 	apachelog "github.com/lestrrat-go/apache-logformat/v2"
 )
 
-//nolint:lll
 const (
 	// Apache Log format.
-	alFmt = `%{X-Forwarded-For}i "%{X-Username}o" %{X-UserID}o %t "%r" %>s %b "%{Referer}i" "%{User-agent}i" query:%{X-Request-Time}o req:%{ms}Tms age:%{Age}o`
+	alFmt = `%{X-Forwarded-For}i "%{X-Username}o" %{X-UserID}o %t "%r" %>s %b "%{Referer}i" "%{User-agent}i" ` +
+		`query:%{X-Request-Time}o req:%{ms}Tms age:%{Age}o env:%{X-Environment}o`
 )
 
 // Config is the input data for the server.
@@ -29,7 +29,7 @@ type Config struct {
 type server struct {
 	cache  *cache.Cache
 	config *Config
-	router *mux.Router
+	*mux.Router
 }
 
 // Start runs the app.
@@ -50,30 +50,30 @@ func Start(config *Config) error {
 	server := &server{
 		cache:  cache,
 		config: config,
-		router: mux.NewRouter(),
+		Router: mux.NewRouter(),
 	}
 
 	return server.startWebServer()
 }
 
 func (s *server) startWebServer() error {
-	s.router.Use(fixForwardedFor)
-	s.router.Use(s.parseAPIKey)
-	s.router.HandleFunc("/}", s.noKeyReply)
-	s.router.HandleFunc("/auth/", s.handleKey)
-	s.router.HandleFunc("/auth", s.handleKey)
-	s.router.HandleFunc("/auth/", s.handleDelKey).Methods(http.MethodDelete)
-	s.router.HandleFunc("/auth", s.handleDelKey).Methods(http.MethodDelete)
-	s.router.HandleFunc("/del/{"+apiKey+"}", s.handleDelKey) // deprecate this.
+	// functions
+	s.Use(fixForwardedFor)
+	s.Use(s.parseAPIKey)
+	// handlers
+	s.HandleFunc("/auth", s.handleDelKey).Methods(http.MethodDelete)
+	s.HandleFunc("/auth", s.handleGetKey)
+	s.HandleFunc("/auth/", s.handleGetKey)
+	s.HandleFunc("/", s.noKeyReply)
 
 	// Create pretty Apache-style logs.
 	apache, err := apachelog.New(alFmt)
 	if err != nil {
-		return fmt.Errorf("apache log problem: %w", err)
+		return fmt.Errorf("http log failed: %w", err)
 	}
 
 	smx := http.NewServeMux()                         // router magic.
-	smx.Handle("/", apache.Wrap(s.router, os.Stderr)) // dump logs into docker container, or whatever.
+	smx.Handle("/", apache.Wrap(s.Router, os.Stderr)) // dump logs into docker container, or whatever.
 
 	err = http.ListenAndServe(s.config.ListenAddr, smx)
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
