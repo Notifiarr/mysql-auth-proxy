@@ -60,7 +60,10 @@ func (s *server) handleDelKey(resp http.ResponseWriter, req *http.Request) {
 }
 
 // noKeyReply returns a 401.
-func (s *server) noKeyReply(resp http.ResponseWriter, _ *http.Request) {
+func (s *server) noKeyReply(resp http.ResponseWriter, req *http.Request) {
+	key, length := maskAPIKey(mux.Vars(req)[apiKey])
+	resp.Header().Set("X-Key", key)
+	resp.Header().Set("X-Length", strconv.Itoa(length))
 	resp.WriteHeader(http.StatusUnauthorized)
 
 	if _, err := resp.Write([]byte("invalid or no key provided")); err != nil {

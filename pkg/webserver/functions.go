@@ -32,10 +32,13 @@ func parseKey(req *http.Request) string {
 // or returns a 401 if no key is found.
 func (s *server) parseAPIKey(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		if key := parseKey(req); len(key) != keyLength && req.Method != http.MethodDelete {
+		key := parseKey(req)
+		req = mux.SetURLVars(req, map[string]string{apiKey: key})
+
+		if len(key) != keyLength && req.Method != http.MethodDelete {
 			s.noKeyReply(resp, req) // bad key, bail out.
 		} else {
-			next.ServeHTTP(resp, mux.SetURLVars(req, map[string]string{apiKey: key}))
+			next.ServeHTTP(resp, req)
 		}
 	})
 }
@@ -53,4 +56,13 @@ func fixForwardedFor(next http.Handler) http.Handler {
 
 		next.ServeHTTP(resp, req)
 	})
+}
+
+func maskAPIKey(key string) (string, int) {
+	length := len(key)
+	if length < 10 {
+		return key, length
+	}
+
+	return key[:5] + "..." + key[length-2:], length
 }
