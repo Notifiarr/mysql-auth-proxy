@@ -13,29 +13,20 @@ const (
 	keyPosition = 5        // example: /api/v1/route/method/apikey
 )
 
-// parseKey attempts to get the key from either the url (mux vars), or two different headers.
-func parseKey(req *http.Request) string {
-	if keys := req.Header.Get("X-API-Keys"); keys != "" && req.Method == http.MethodDelete {
-		return keys // can delete multiple comma-separated keys. no validation.
-	}
-
-	if key := req.Header.Get("X-API-Key"); len(key) == keyLength {
-		return key
-	} else if uri := strings.Split(req.Header.Get("X-Original-URI"), "/"); len(uri) > keyPosition {
-		return strings.Split(uri[keyPosition], "?")[0]
-	}
-
-	return ""
-}
-
 // parseAPIKey sets a valid-lengh api key to a mux var.
 // or returns a 401 if no key is found.
 func (s *server) parseAPIKey(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		key := parseKey(req)
+		key := req.Header.Get("X-API-Key")
+		if len(key) != keyLength {
+			if uri := strings.Split(req.Header.Get("X-Original-URI"), "/"); len(uri) > keyPosition {
+				key = strings.Split(uri[keyPosition], "?")[0]
+			}
+		}
+
 		req = mux.SetURLVars(req, map[string]string{apiKey: key})
 
-		if len(key) != keyLength && req.Method != http.MethodDelete {
+		if len(key) != keyLength {
 			s.noKeyReply(resp, req) // bad key, bail out.
 		} else {
 			next.ServeHTTP(resp, req)
@@ -64,5 +55,5 @@ func maskAPIKey(key string) (string, int) {
 		return key, length
 	}
 
-	return key[:5] + "..." + key[length-2:], length
+	return key[:4] + "..." + key[length-2:], length
 }

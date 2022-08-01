@@ -26,8 +26,19 @@ func main() {
 		pass = string(bytes.TrimSpace(fileData))
 	}
 
+	password := os.Getenv("SECRET")
+	if fileName := os.Getenv("SECRET_FILE"); password == "" && fileName != "" {
+		fileData, err := ioutil.ReadFile(fileName)
+		if err != nil {
+			log.Fatalf("ERROR: %v", err)
+		}
+
+		password = string(bytes.TrimSpace(fileData))
+	}
+
 	config := &webserver.Config{
 		ListenAddr: listen,
+		Password:   password,
 		Config: &userinfo.Config{
 			Host: os.Getenv("MYSQL_HOST"),
 			User: os.Getenv("MYSQL_USER"),

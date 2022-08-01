@@ -24,6 +24,11 @@ map $request_uri $incoming_api_key {
   default                     $remote_api_key;
 }
 
+map $incoming_api_key $outgoing_api_key {
+  ''      $auth_key;
+  default $incoming_api_key;
+}
+
 # Pick a new Host header based on proxy environment returned.
 # This is what we use this auth proxy for.
 map $proxy_env $redirect_host {
@@ -50,6 +55,7 @@ server {
     auth_request /auth;
     auth_request_set $proxy_env $upstream_http_X_Environment;
     auth_request_set $auth_user $upstream_http_X_Username;
+    auth_request_set $auth_key $upstream_http_X_API_Key;
     auth_request_set $auth_idnt $upstream_http_X_UserID;
 
     proxy_set_header host $redirect_host;
@@ -63,6 +69,7 @@ server {
     proxy_set_header Content-Length "";
     proxy_set_header X-Original-URI $request_uri;
     proxy_set_header X-API-Key $incoming_api_key;
+    proxy_set_header X-Server $http_X_Server;
     proxy_pass $authproxy/auth;
   }
 }

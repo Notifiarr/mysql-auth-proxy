@@ -15,42 +15,45 @@ import (
 
 const (
 	// Apache Log format.
-	alFmt = `%{Host}i %{X-Forwarded-For}i "%{X-Username}o" %{X-UserID}o %t "%r" %>s %b "%{Referer}i" "%{User-agent}i" ` +
-		`query:%{X-Request-Time}o req:%{ms}Tms age:%{Age}o env:%{X-Environment}o key:%{X-Key}o(%{X-Length}o)`
+	alFmt = `%V %{X-Forwarded-For}i "%{X-Username}o" %{X-UserID}o %t "%r" %>s %b "%{Referer}i" "%{User-agent}i" ` +
+		`query:%{X-Request-Time}o req:%{ms}Tms age:%{Age}o env:%{X-Environment}o key:%{X-Key}o(%{X-Length}o) "srv:%{X-Server}i"`
 )
 
 // Config is the input data for the server.
 type Config struct {
 	ListenAddr       string `toml:"listen_addr" xml:"listen_addr"`
+	Password         string `toml:"password" xml:"password"`
 	*userinfo.Config        // contains mysql host, user, pass.
 }
 
 // server holds the running data.
 type server struct {
-	cache  *cache.Cache
-	config *Config
+	users   *cache.Cache
+	servers *cache.Cache
+	config  *Config
+	ui      *userinfo.UI
 	*mux.Router
 }
 
 // Start runs the app.
 func Start(config *Config) error {
 	log.Println("Auth proxy starting up!")
-	log.Printf("DB Host %s, User: %s, DB Name: %s", config.Host, config.User, config.Name)
+	log.Printf("DB Host %s, User: %s, DB Name: %s, Password: %v", config.Host, config.User, config.Name, config.Password != "")
 
-	cache, err := cache.New(config.Config)
+	ui, err := userinfo.New(config.Config)
 	if err != nil {
-		return fmt.Errorf("cache failure: %w", err)
+		return fmt.Errorf("initializing userinfo: %w", err)
 	}
 
-	defer cache.Stop(false)
-
-	log.Println("Initialized Cache and MySQL successfully")
+	log.Println("Initialized  MySQL successfully")
 	log.Printf("HTTP listening at: %s", config.ListenAddr)
 
 	server := &server{
-		cache:  cache,
-		config: config,
-		Router: mux.NewRouter(),
+		users:   cache.New(),
+		servers: cache.New(),
+		config:  config,
+		ui:      ui,
+		Router:  mux.NewRouter(),
 	}
 
 	return server.startWebServer()
@@ -59,11 +62,11 @@ func Start(config *Config) error {
 func (s *server) startWebServer() error {
 	// functions
 	s.Use(fixForwardedFor)
-	s.Use(s.parseAPIKey)
 	// handlers
-	s.HandleFunc("/auth", s.handleDelKey).Methods(http.MethodDelete)
-	s.HandleFunc("/auth", s.handleGetKey)
-	s.HandleFunc("/auth/", s.handleGetKey)
+	s.HandleFunc("/auth", s.handleDelKey).Methods(http.MethodDelete).Headers("X-API-Keys", "")
+	s.HandleFunc("/auth", s.handleDelSrv).Methods(http.MethodDelete).Headers("X-Server", "")
+	s.HandleFunc("/auth", s.handleServer).Headers("X-Server", "", "X-Password", s.config.Password)
+	s.Handle("/auth", s.parseAPIKey(http.HandlerFunc(s.handleGetKey)))
 	s.HandleFunc("/", s.noKeyReply)
 
 	// Create pretty Apache-style logs.

@@ -3,7 +3,9 @@ package userinfo
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 
 	_ "github.com/go-sql-driver/mysql" // We use mysql driver, this is how it's loaded.
@@ -12,6 +14,8 @@ import (
 const (
 	getUserQuery = "SELECT `developmentEnv`,`environment`,`name`,`id` FROM `users` WHERE `apikey`='%[1]s' " +
 		"OR `id`=(SELECT `user_id` FROM `apikeys` WHERE `apikey`='%[1]s' LIMIT 1) LIMIT 1;"
+	getServerQuery = "SELECT `apikey`,`developmentEnv`,`environment`,`name`,`users`.`id`,CONVERT(FROM_BASE64(`discord`) USING utf8) FROM `users` " +
+		"LEFT JOIN `user_settings` ON (`users`.`id` = `user_id`) WHERE `discordServers` LIKE '%%%[1]s%%';"
 )
 
 // Default user values.
@@ -37,6 +41,7 @@ type UI struct {
 
 // UserInfo is the data returned for each user request.
 type UserInfo struct {
+	APIKey      string `json:"apiKey,omitempty"`
 	Environment string `json:"environment"`
 	Username    string `json:"username"`
 	UserID      string `json:"userId"`
@@ -101,6 +106,7 @@ func (u *UserInfo) Copy() *UserInfo {
 	}
 
 	return &UserInfo{
+		APIKey:      u.APIKey,
 		Environment: u.Environment,
 		Username:    u.Username,
 		UserID:      u.UserID,
@@ -133,5 +139,81 @@ func (u *UI) GetInfo(ctx context.Context, requestKey string) (*UserInfo, error) 
 		user.Environment = DefaultEnvironment
 	}
 
+	user.APIKey = requestKey
+
 	return user, nil
 }
+
+func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) {
+	rows, err := u.dbase.QueryContext(ctx, fmt.Sprintf(getServerQuery, serverID))
+	if err != nil {
+		return nil, fmt.Errorf("querying database: %w", err)
+	} else if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("getting database rows: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		user := DefaultUser()
+		devAllowed := "0"
+		discord := ""
+
+		err := rows.Scan(&user.APIKey, &devAllowed, &user.Environment, &user.Username, &user.UserID, &discord)
+		if err != nil {
+			return nil, fmt.Errorf("scanning database rows: %w", err)
+		}
+
+		if devAllowed != "1" {
+			user.Environment = DefaultEnvironment
+		}
+		discordVal := struct {
+			Server string `json:"discordServer"`
+		}{}
+
+		err = json.Unmarshal([]byte(discord), &discordVal)
+		if err != nil {
+			log.Printf("[ERROR] mysql json parse: %v", err)
+		}
+
+		if discordVal.Server == serverID {
+			return user, nil
+		}
+	}
+
+	return DefaultUser(), nil
+}
+
+/*
+   function getUserdataFromServer($server)
+   {
+       global $db;
+
+       if (!$server) {
+           return;
+       }
+
+       $row = json2array(getCache('getUserdataFromServer-' . $server));
+
+       if (!$row) {
+           $q = "SELECT a.*, b.discord
+                 FROM " . USERS_TABLE . " a, " . USER_SETTINGS_TABLE . " b
+                 WHERE a.id = b.user_id
+                 AND LOCATE('" . $server . "', `discordServers`) > 0";
+           $r = mysqli_query($db, $q);
+           while ($row = mysqli_fetch_assoc($r)) {
+               $discordData = json2array(base64_decode($row['discord']));
+
+               if ($discordData['discordServer'] == $server) {
+                   unset($row['discord']);
+                   $user = $row;
+                   break;
+               }
+
+               $rows[] = $row;
+           }
+
+           setCache('getUserdataFromServer-' . $server, json_encode($row), 10);
+       }
+
+       return $row;
+   }*/
