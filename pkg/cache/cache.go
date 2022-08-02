@@ -12,6 +12,7 @@ type Cache struct {
 	res   chan *res
 }
 
+// Item is what's returned from a cache Get.
 type Item struct {
 	Data interface{} `json:"data"`
 	Time time.Time   `json:"created"`
@@ -42,24 +43,24 @@ func (c *Cache) Stop(clean bool) {
 	}
 }
 
-// GetUserInfo returns a user's info from cache or from the user database.
-func (c *Cache) Get(requestKey string) (*Item, bool) {
+// Get returns an item, or nil if it doesn't exist.
+func (c *Cache) Get(requestKey string) *Item {
 	c.req <- &req{key: requestKey}
 	ret := <-c.res
 
-	return ret.item, ret.exists
+	return ret.item
 }
 
-// GetUserInfo returns a user's info from cache or from the user database.
+// Save saves an item, and returns true if it already existed.
 func (c *Cache) Save(requestKey string, data interface{}) bool {
 	c.req <- &req{key: requestKey, data: data}
 	return (<-c.res).exists
 }
 
-// DelCacheKey removes a cached key and it's data.
-func (c *Cache) Delete(requestKey string) *Item {
+// Delete removes an item and returns true if it existed.
+func (c *Cache) Delete(requestKey string) bool {
 	c.req <- &req{key: requestKey, del: true}
 	ret := <-c.res
 
-	return ret.item
+	return ret.exists
 }

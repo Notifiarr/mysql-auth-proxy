@@ -15,7 +15,7 @@ const (
 	getUserQuery = "SELECT `developmentEnv`,`environment`,`name`,`id` FROM `users` WHERE `apikey`='%[1]s' " +
 		"OR `id`=(SELECT `user_id` FROM `apikeys` WHERE `apikey`='%[1]s' LIMIT 1) LIMIT 1;"
 	getServerQuery = "SELECT `apikey`,`developmentEnv`,`environment`,`name`,`users`.`id`,CONVERT(FROM_BASE64(`discord`) USING utf8) FROM `users` " +
-		"LEFT JOIN `user_settings` ON (`users`.`id` = `user_id`) WHERE `discordServers` LIKE '%%%[1]s%%';"
+		"LEFT JOIN `user_settings` ON (`users`.`id` = `user_id`) WHERE `discordServers` LIKE '%%%[1]s%%' AND discord <> '' AND apikey <> '';"
 )
 
 // Default user values.
@@ -99,20 +99,6 @@ func DefaultUser() *UserInfo {
 	}
 }
 
-// Copy returns a copy of a user's info.
-func (u *UserInfo) Copy() *UserInfo {
-	if u == nil {
-		return DefaultUser()
-	}
-
-	return &UserInfo{
-		APIKey:      u.APIKey,
-		Environment: u.Environment,
-		Username:    u.Username,
-		UserID:      u.UserID,
-	}
-}
-
 // GetInfo returns a user's info from a mysql database.
 func (u *UI) GetInfo(ctx context.Context, requestKey string) (*UserInfo, error) {
 	rows, err := u.dbase.QueryContext(ctx, fmt.Sprintf(getUserQuery, requestKey))
@@ -153,6 +139,8 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 	}
 	defer rows.Close()
 
+	var errs error
+
 	for rows.Next() {
 		user := DefaultUser()
 		devAllowed := "0"
@@ -160,18 +148,19 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 
 		err := rows.Scan(&user.APIKey, &devAllowed, &user.Environment, &user.Username, &user.UserID, &discord)
 		if err != nil {
-			return nil, fmt.Errorf("scanning database rows: %w", err)
+			log.Printf("[ERROR] scanning mysql rows: %v", errs)
+			continue
 		}
 
 		if devAllowed != "1" {
 			user.Environment = DefaultEnvironment
 		}
+
 		discordVal := struct {
 			Server string `json:"discordServer"`
 		}{}
 
-		err = json.Unmarshal([]byte(discord), &discordVal)
-		if err != nil {
+		if err = json.Unmarshal([]byte(discord), &discordVal); err != nil {
 			log.Printf("[ERROR] mysql json parse: %v", err)
 		}
 
@@ -182,38 +171,3 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 
 	return DefaultUser(), nil
 }
-
-/*
-   function getUserdataFromServer($server)
-   {
-       global $db;
-
-       if (!$server) {
-           return;
-       }
-
-       $row = json2array(getCache('getUserdataFromServer-' . $server));
-
-       if (!$row) {
-           $q = "SELECT a.*, b.discord
-                 FROM " . USERS_TABLE . " a, " . USER_SETTINGS_TABLE . " b
-                 WHERE a.id = b.user_id
-                 AND LOCATE('" . $server . "', `discordServers`) > 0";
-           $r = mysqli_query($db, $q);
-           while ($row = mysqli_fetch_assoc($r)) {
-               $discordData = json2array(base64_decode($row['discord']));
-
-               if ($discordData['discordServer'] == $server) {
-                   unset($row['discord']);
-                   $user = $row;
-                   break;
-               }
-
-               $rows[] = $row;
-           }
-
-           setCache('getUserdataFromServer-' . $server, json_encode($row), 10);
-       }
-
-       return $row;
-   }*/

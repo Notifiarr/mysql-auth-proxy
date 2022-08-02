@@ -51,9 +51,10 @@ func (c *Cache) processRequests() {
 			c.cache[req.key] = &Item{Data: req.data, Time: time.Now()}
 			c.res <- &res{item: c.cache[req.key], exists: exists}
 		case req.del:
-			data := c.cache[req.key]
+			_, exists := c.cache[req.key]
+			c.cache[req.key] = nil
 			delete(c.cache, req.key)
-			c.res <- &res{item: data}
+			c.res <- &res{exists: exists}
 		default:
 			data, exists := c.cache[req.key]
 			c.res <- &res{item: data, exists: exists}

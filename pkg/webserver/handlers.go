@@ -15,34 +15,32 @@ import (
 	"github.com/gorilla/mux"
 )
 
-type getReq struct {
-	key  string
-	item *cache.Item
-	get  func(context.Context, string) (*userinfo.UserInfo, error)
-	save func(string, interface{}) bool
+type keyReq struct {
+	key   string
+	cache *cache.Item
+	get   func(context.Context, string) (*userinfo.UserInfo, error)
+	save  func(string, interface{}) bool
 }
 
 func (s *server) handleServer(resp http.ResponseWriter, req *http.Request) {
-	item, _ := s.servers.Get(req.Header.Get("X-Server"))
-	s.handleGetAny(resp, req, &getReq{
-		key:  req.Header.Get("X-Server"),
-		item: item,
-		get:  s.ui.GetServer,
-		save: s.servers.Save,
+	s.handleGetAny(resp, req, &keyReq{
+		key:   req.Header.Get("X-Server"),
+		cache: s.servers.Get(req.Header.Get("X-Server")),
+		get:   s.ui.GetServer,
+		save:  s.servers.Save,
 	})
 }
 
 func (s *server) handleGetKey(resp http.ResponseWriter, req *http.Request) {
-	item, _ := s.users.Get(mux.Vars(req)[apiKey])
-	s.handleGetAny(resp, req, &getReq{
-		key:  mux.Vars(req)[apiKey],
-		item: item,
-		get:  s.ui.GetInfo,
-		save: s.users.Save,
+	s.handleGetAny(resp, req, &keyReq{
+		key:   mux.Vars(req)[apiKey],
+		cache: s.users.Get(mux.Vars(req)[apiKey]),
+		get:   s.ui.GetInfo,
+		save:  s.users.Save,
 	})
 }
 
-func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, getReq *getReq) {
+func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, keyReq *keyReq) {
 	var (
 		start = time.Now()
 		when  = start
@@ -50,13 +48,22 @@ func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, getRe
 		err   error
 	)
 
-	if getReq.item != nil && getReq.item.Data != nil {
-		user, _ = getReq.item.Data.(*userinfo.UserInfo)
-		when = getReq.item.Time
-	} else if user, err = getReq.get(req.Context(), getReq.key); err != nil && !errors.Is(err, userinfo.ErrNoUser) {
+	// Check if the cached data is nil or real.
+	// If the cached data is nil, then pull fresh data.
+	// If the fresh data pull has no error, then cache it.
+	if keyReq.cache != nil && keyReq.cache.Data != nil {
+		user, _ = keyReq.cache.Data.(*userinfo.UserInfo)
+		when = keyReq.cache.Time
+	} else if user, err = keyReq.get(req.Context(), keyReq.key); err != nil && !errors.Is(err, userinfo.ErrNoUser) {
 		log.Printf("[ERROR] %v", err)
 	} else {
-		getReq.save(getReq.key, user)
+		keyReq.save(keyReq.key, user)
+	}
+
+	if user == nil { // this only happens on error above.
+		user = userinfo.DefaultUser()
+		key, length := maskAPIKey(keyReq.key)
+		log.Println("[ERROR] user missing from cache or lookup", key, length)
 	}
 
 	resp.Header().Set("X-API-Key", user.APIKey)
@@ -66,7 +73,7 @@ func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, getRe
 	resp.Header().Set("Age", strconv.Itoa(int((time.Since(when).Seconds()))))
 	resp.Header().Set("X-Request-Time", time.Since(start).Round(time.Millisecond).String())
 
-	if user.UserID == userinfo.DefaultUserID && err == nil || errors.Is(err, userinfo.ErrNoUser) {
+	if user.UserID == userinfo.DefaultUserID && (err == nil || errors.Is(err, userinfo.ErrNoUser)) {
 		s.noKeyReply(resp, req)
 	} else {
 		resp.WriteHeader(http.StatusOK)
@@ -76,13 +83,16 @@ func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, getRe
 func (s *server) handleDelSrv(resp http.ResponseWriter, req *http.Request) {
 	start := time.Now()
 	user := userinfo.DefaultUser()
+	item := s.servers.Get(req.Header.Get("X-Server"))
 
-	item := s.servers.Delete(req.Header.Get("X-Server"))
+	defer s.servers.Delete(req.Header.Get("X-Server"))
+
 	if item != nil && item.Data != nil {
 		user, _ = item.Data.(*userinfo.UserInfo)
 	}
 
-	if user.UserID != userinfo.DefaultUserID {
+	// These headers are mostly for logs.
+	if user != nil && user.UserID != userinfo.DefaultUserID {
 		resp.Header().Set("X-UserID", user.UserID)
 		resp.Header().Set("X-Username", user.Username)
 	}
@@ -105,13 +115,15 @@ func (s *server) handleDelKey(resp http.ResponseWriter, req *http.Request) {
 	user := userinfo.DefaultUser()
 
 	for idx, key := range keys {
-		infos[idx] = s.users.Delete(key)
+		infos[idx] = s.users.Get(key)
+		defer s.users.Delete(key)
+
 		if infos[idx] != nil && infos[idx].Data != nil {
 			user, _ = infos[idx].Data.(*userinfo.UserInfo)
 		}
 
 		// Something is better than nothing.
-		if user.UserID != userinfo.DefaultUserID {
+		if user != nil && user.UserID != userinfo.DefaultUserID {
 			resp.Header().Set("X-UserID", user.UserID)
 			resp.Header().Set("X-Username", user.Username)
 		}

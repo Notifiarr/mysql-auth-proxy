@@ -45,7 +45,7 @@ func Start(config *Config) error {
 		return fmt.Errorf("initializing userinfo: %w", err)
 	}
 
-	log.Println("Initialized  MySQL successfully")
+	log.Println("Initialized MySQL successfully")
 	log.Printf("HTTP listening at: %s", config.ListenAddr)
 
 	server := &server{
@@ -65,8 +65,9 @@ func (s *server) startWebServer() error {
 	// handlers
 	s.HandleFunc("/auth", s.handleDelKey).Methods(http.MethodDelete).Headers("X-API-Keys", "")
 	s.HandleFunc("/auth", s.handleDelSrv).Methods(http.MethodDelete).Headers("X-Server", "")
-	s.HandleFunc("/auth", s.handleServer).Headers("X-Server", "", "X-Password", s.config.Password)
-	s.Handle("/auth", s.parseAPIKey(http.HandlerFunc(s.handleGetKey)))
+	s.HandleFunc("/auth", s.handleServer).Methods(http.MethodGet, http.MethodHead).
+		Headers("X-Server", "", "X-Password", s.config.Password)
+	s.Handle("/auth", s.parseAPIKey(http.HandlerFunc(s.handleGetKey))).Methods(http.MethodGet, http.MethodHead)
 	s.HandleFunc("/", s.noKeyReply)
 
 	// Create pretty Apache-style logs.
