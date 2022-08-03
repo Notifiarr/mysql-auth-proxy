@@ -2,6 +2,7 @@ package webserver
 
 import (
 	"errors"
+	"expvar"
 	"fmt"
 	"log"
 	"net/http"
@@ -49,8 +50,8 @@ func Start(config *Config) error {
 	log.Printf("HTTP listening at: %s", config.ListenAddr)
 
 	server := &server{
-		users:   cache.New(),
-		servers: cache.New(),
+		users:   cache.New("Users", true),
+		servers: cache.New("Servers", false),
 		config:  config,
 		ui:      ui,
 		Router:  mux.NewRouter(),
@@ -62,12 +63,17 @@ func Start(config *Config) error {
 func (s *server) startWebServer() error {
 	// functions
 	s.Use(fixForwardedFor)
+	s.Use(countRequests)
 	// handlers
+	s.HandleFunc("/stats", s.handleUserStats).Methods(http.MethodGet).Headers("X-API-Key", "")
+	s.HandleFunc("/stats", s.handleSrvStats).Methods(http.MethodGet).Headers("X-Server", "")
+	s.Handle("/stats", expvar.Handler()).Methods(http.MethodGet)
 	s.HandleFunc("/auth", s.handleDelKey).Methods(http.MethodDelete).Headers("X-API-Keys", "")
 	s.HandleFunc("/auth", s.handleDelSrv).Methods(http.MethodDelete).Headers("X-Server", "")
 	s.HandleFunc("/auth", s.handleServer).Methods(http.MethodGet, http.MethodHead).
 		Headers("X-Server", "", "X-Password", s.config.Password)
-	s.Handle("/auth", s.parseAPIKey(http.HandlerFunc(s.handleGetKey))).Methods(http.MethodGet, http.MethodHead)
+	s.Handle("/auth", s.parseAPIKey(http.HandlerFunc(s.handleGetKey))).
+		Methods(http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut)
 	s.HandleFunc("/", s.noKeyReply)
 
 	// Create pretty Apache-style logs.

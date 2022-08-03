@@ -19,7 +19,7 @@ type keyReq struct {
 	key   string
 	cache *cache.Item
 	get   func(context.Context, string) (*userinfo.UserInfo, error)
-	save  func(string, interface{}) bool
+	save  func(string, interface{}, bool) bool
 }
 
 func (s *server) handleServer(resp http.ResponseWriter, req *http.Request) {
@@ -54,10 +54,12 @@ func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, keyRe
 	if keyReq.cache != nil && keyReq.cache.Data != nil {
 		user, _ = keyReq.cache.Data.(*userinfo.UserInfo)
 		when = keyReq.cache.Time
-	} else if user, err = keyReq.get(req.Context(), keyReq.key); err != nil && !errors.Is(err, userinfo.ErrNoUser) {
+	} else if user, err = keyReq.get(req.Context(), keyReq.key); errors.Is(err, userinfo.ErrNoUser) {
+		keyReq.save(keyReq.key, user, true)
+	} else if err != nil {
 		log.Printf("[ERROR] %v", err)
 	} else {
-		keyReq.save(keyReq.key, user)
+		keyReq.save(keyReq.key, user, false)
 	}
 
 	if user == nil { // this only happens on error above.
@@ -140,14 +142,27 @@ func (s *server) handleDelKey(resp http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func (s *server) handleUserStats(resp http.ResponseWriter, req *http.Request) {
+	if item := s.users.Get(req.Header.Get("x-api-key")); item == nil || item.Data == nil {
+		resp.WriteHeader(http.StatusNotFound)
+	} else if err := json.NewEncoder(resp).Encode(item); err != nil {
+		log.Printf("[ERROR] writing response: %v", err)
+	}
+}
+
+func (s *server) handleSrvStats(resp http.ResponseWriter, req *http.Request) {
+	if item := s.servers.Get(req.Header.Get("x-server")); item == nil || item.Data == nil {
+		resp.WriteHeader(http.StatusNotFound)
+	} else if err := json.NewEncoder(resp).Encode(item); err != nil {
+		log.Printf("[ERROR] writing response: %v", err)
+	}
+}
+
 // noKeyReply returns a 401.
 func (s *server) noKeyReply(resp http.ResponseWriter, req *http.Request) {
 	key, length := maskAPIKey(mux.Vars(req)[apiKey])
 	resp.Header().Set("X-Key", key)
+	resp.Header().Set("X-API-Key", mux.Vars(req)[apiKey])
 	resp.Header().Set("X-Length", strconv.Itoa(length))
 	resp.WriteHeader(http.StatusUnauthorized)
-
-	if _, err := resp.Write([]byte("invalid or no key provided")); err != nil {
-		log.Printf("[ERROR] writing response: %v", err)
-	}
 }

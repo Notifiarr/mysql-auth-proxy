@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # This should run local to the Dockerfile folder, so the to run from is path is ..
-pushd ..
+pushd -- "$( dirname -- "${BASH_SOURCE[0]}" )"/..
 
 DOCKER_REPO=golift/mysql-auth-proxy
 TAGS="$TAGS --tag ${DOCKER_REPO}:latest"

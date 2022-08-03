@@ -4,10 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
+	"github.com/Notifiarr/mysql-auth-proxy/pkg/exp"
 	_ "github.com/go-sql-driver/mysql" // We use mysql driver, this is how it's loaded.
 )
 
@@ -101,16 +104,24 @@ func DefaultUser() *UserInfo {
 
 // GetInfo returns a user's info from a mysql database.
 func (u *UI) GetInfo(ctx context.Context, requestKey string) (*UserInfo, error) {
+	exp.MySQLRequests.Add("User Queries", 1)
+	exp.MySQLRequests.Set("Last User", expvar.Func((&exp.Time{Time: time.Now()}).Since))
+
 	rows, err := u.dbase.QueryContext(ctx, fmt.Sprintf(getUserQuery, requestKey))
 	if err != nil {
+		exp.MySQLRequests.Add("User Errors", 1)
 		return nil, fmt.Errorf("querying database: %w", err)
 	} else if err = rows.Err(); err != nil {
+		exp.MySQLRequests.Add("User Errors", 1)
 		return nil, fmt.Errorf("getting database rows: %w", err)
 	}
 	defer rows.Close()
 
 	user := DefaultUser()
+	user.APIKey = requestKey
+
 	if !rows.Next() {
+		exp.MySQLRequests.Add("Missing Users", 1)
 		return user, ErrNoUser // must return default user on error.
 	}
 
@@ -118,6 +129,7 @@ func (u *UI) GetInfo(ctx context.Context, requestKey string) (*UserInfo, error) 
 
 	err = rows.Scan(&devAllowed, &user.Environment, &user.Username, &user.UserID)
 	if err != nil {
+		exp.MySQLRequests.Add("User Errors", 1)
 		return nil, fmt.Errorf("scanning database rows: %w", err)
 	}
 
@@ -125,16 +137,19 @@ func (u *UI) GetInfo(ctx context.Context, requestKey string) (*UserInfo, error) 
 		user.Environment = DefaultEnvironment
 	}
 
-	user.APIKey = requestKey
-
 	return user, nil
 }
 
 func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) {
+	exp.MySQLRequests.Add("Server Queries", 1)
+	exp.MySQLRequests.Set("Last Server", expvar.Func((&exp.Time{Time: time.Now()}).Since))
+
 	rows, err := u.dbase.QueryContext(ctx, fmt.Sprintf(getServerQuery, serverID))
 	if err != nil {
+		exp.MySQLRequests.Add("Server Errors", 1)
 		return nil, fmt.Errorf("querying database: %w", err)
 	} else if err = rows.Err(); err != nil {
+		exp.MySQLRequests.Add("Server Errors", 1)
 		return nil, fmt.Errorf("getting database rows: %w", err)
 	}
 	defer rows.Close()
@@ -148,7 +163,9 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 
 		err := rows.Scan(&user.APIKey, &devAllowed, &user.Environment, &user.Username, &user.UserID, &discord)
 		if err != nil {
+			exp.MySQLRequests.Add("Server Errors", 1)
 			log.Printf("[ERROR] scanning mysql rows: %v", errs)
+
 			continue
 		}
 
@@ -161,6 +178,7 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 		}{}
 
 		if err = json.Unmarshal([]byte(discord), &discordVal); err != nil {
+			exp.MySQLRequests.Add("Server Errors", 1)
 			log.Printf("[ERROR] mysql json parse: %v", err)
 		}
 
@@ -168,6 +186,8 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 			return user, nil
 		}
 	}
+
+	exp.MySQLRequests.Add("Missing Servers", 1)
 
 	return DefaultUser(), nil
 }
