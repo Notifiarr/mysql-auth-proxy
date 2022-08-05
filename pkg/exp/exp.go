@@ -4,23 +4,18 @@ package exp
 import (
 	"expvar"
 	"time"
+
+	"github.com/hako/durafmt"
 )
 
-var (
-	mainMap = expvar.NewMap("auth").Init()
-)
+var mainMap = expvar.NewMap("auth").Init()
 
 func init() {
 	start := &Time{Time: time.Now(), Num: 3}
 	mainMap.Set("Uptime", expvar.Func(start.Since))
 }
 
-var (
-	// LogFiles      = GetMap("Log File Information").Init()
-	HTTPRequests  = GetMap("Incoming HTTP Requests").Init()
-	MySQLRequests = GetMap("Outgoing MySQL Requests").Init()
-)
-
+// GetMap returns a known-expvar map by name.
 func GetMap(name string) *expvar.Map {
 	if p := mainMap.Get(name); p != nil {
 		pp, _ := p.(*expvar.Map)
@@ -33,19 +28,23 @@ func GetMap(name string) *expvar.Map {
 	return newMap
 }
 
-func GetKeys(mapName *expvar.Map) map[string]interface{} {
-	output := make(map[string]interface{})
+// AddVar allows adding arbitrary vars or maps to our main map.
+func AddVar(name string, newVar expvar.Var) {
+	mainMap.Set(name, newVar)
+}
 
-	mapName.Do(func(keyval expvar.KeyValue) {
-		switch v := keyval.Value.(type) {
-		case *expvar.Int:
-			output[keyval.Key] = v.Value()
-		case expvar.Func:
-			output[keyval.Key], _ = v.Value().(int64)
-		default:
-			output[keyval.Key] = keyval.Value
-		}
-	})
+// Time allows formatting time Durations.
+type Time struct {
+	time.Time
+	Num int
+}
 
-	return output
+// Since returns a pretty-formatted time duration for expvar.
+func (e *Time) Since() interface{} {
+	num := e.Num
+	if num == 0 {
+		num = 2
+	}
+
+	return durafmt.Parse(time.Since(e.Time)).LimitFirstN(num).String()
 }

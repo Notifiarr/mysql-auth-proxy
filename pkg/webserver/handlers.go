@@ -10,16 +10,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Notifiarr/mysql-auth-proxy/pkg/cache"
 	"github.com/Notifiarr/mysql-auth-proxy/pkg/userinfo"
 	"github.com/gorilla/mux"
+	"golift.io/cache"
 )
 
 type keyReq struct {
 	key   string
 	cache *cache.Item
 	get   func(context.Context, string) (*userinfo.UserInfo, error)
-	save  func(string, interface{}, bool) bool
+	save  func(string, interface{}, cache.Options) bool
 }
 
 func (s *server) handleServer(resp http.ResponseWriter, req *http.Request) {
@@ -55,11 +55,11 @@ func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, keyRe
 		user, _ = keyReq.cache.Data.(*userinfo.UserInfo)
 		when = keyReq.cache.Time
 	} else if user, err = keyReq.get(req.Context(), keyReq.key); errors.Is(err, userinfo.ErrNoUser) {
-		keyReq.save(keyReq.key, user, true)
+		keyReq.save(keyReq.key, user, cache.Options{Prune: true})
 	} else if err != nil {
 		log.Printf("[ERROR] %v", err)
 	} else {
-		keyReq.save(keyReq.key, user, false)
+		keyReq.save(keyReq.key, user, cache.Options{Prune: false})
 	}
 
 	if user == nil { // this only happens on error above.
@@ -154,6 +154,18 @@ func (s *server) handleSrvStats(resp http.ResponseWriter, req *http.Request) {
 	if item := s.servers.Get(req.Header.Get("x-server")); item == nil || item.Data == nil {
 		resp.WriteHeader(http.StatusNotFound)
 	} else if err := json.NewEncoder(resp).Encode(item); err != nil {
+		log.Printf("[ERROR] writing response: %v", err)
+	}
+}
+
+func (s *server) handeUserList(resp http.ResponseWriter, req *http.Request) {
+	if err := json.NewEncoder(resp).Encode(s.users.List()); err != nil {
+		log.Printf("[ERROR] writing response: %v", err)
+	}
+}
+
+func (s *server) handeSrvList(resp http.ResponseWriter, req *http.Request) {
+	if err := json.NewEncoder(resp).Encode(s.servers.List()); err != nil {
 		log.Printf("[ERROR] writing response: %v", err)
 	}
 }

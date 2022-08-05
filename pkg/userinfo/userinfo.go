@@ -1,24 +1,13 @@
 package userinfo
 
 import (
-	"context"
 	"database/sql"
-	"encoding/json"
 	"expvar"
 	"fmt"
-	"log"
 	"strings"
-	"time"
 
 	"github.com/Notifiarr/mysql-auth-proxy/pkg/exp"
 	_ "github.com/go-sql-driver/mysql" // We use mysql driver, this is how it's loaded.
-)
-
-const (
-	getUserQuery = "SELECT `developmentEnv`,`environment`,`name`,`id` FROM `users` WHERE `apikey`='%[1]s' " +
-		"OR `id`=(SELECT `user_id` FROM `apikeys` WHERE `apikey`='%[1]s' LIMIT 1) LIMIT 1;"
-	getServerQuery = "SELECT `apikey`,`developmentEnv`,`environment`,`name`,`users`.`id`,CONVERT(FROM_BASE64(`discord`) USING utf8) FROM `users` " +
-		"LEFT JOIN `user_settings` ON (`users`.`id` = `user_id`) WHERE `discordServers` LIKE '%%%[1]s%%' AND discord <> '' AND apikey <> '';"
 )
 
 // Default user values.
@@ -40,6 +29,7 @@ type Config struct {
 type UI struct {
 	config *Config
 	dbase  *sql.DB
+	exp    *expvar.Map
 }
 
 // UserInfo is the data returned for each user request.
@@ -62,7 +52,10 @@ func New(config *Config) (*UI, error) {
 		return nil, ErrNoConfig
 	}
 
-	ui := &UI{config: config}
+	ui := &UI{
+		config: config,
+		exp:    exp.GetMap("Outgoing MySQL Requests").Init(),
+	}
 
 	return ui, ui.Open()
 }
@@ -100,94 +93,4 @@ func DefaultUser() *UserInfo {
 		Username:    DefaultUsername,
 		UserID:      DefaultUserID,
 	}
-}
-
-// GetInfo returns a user's info from a mysql database.
-func (u *UI) GetInfo(ctx context.Context, requestKey string) (*UserInfo, error) {
-	exp.MySQLRequests.Add("User Queries", 1)
-	exp.MySQLRequests.Set("Last User", expvar.Func((&exp.Time{Time: time.Now()}).Since))
-
-	rows, err := u.dbase.QueryContext(ctx, fmt.Sprintf(getUserQuery, requestKey))
-	if err != nil {
-		exp.MySQLRequests.Add("User Errors", 1)
-		return nil, fmt.Errorf("querying database: %w", err)
-	} else if err = rows.Err(); err != nil {
-		exp.MySQLRequests.Add("User Errors", 1)
-		return nil, fmt.Errorf("getting database rows: %w", err)
-	}
-	defer rows.Close()
-
-	user := DefaultUser()
-	user.APIKey = requestKey
-
-	if !rows.Next() {
-		exp.MySQLRequests.Add("Missing Users", 1)
-		return user, ErrNoUser // must return default user on error.
-	}
-
-	devAllowed := "0"
-
-	err = rows.Scan(&devAllowed, &user.Environment, &user.Username, &user.UserID)
-	if err != nil {
-		exp.MySQLRequests.Add("User Errors", 1)
-		return nil, fmt.Errorf("scanning database rows: %w", err)
-	}
-
-	if devAllowed != "1" {
-		user.Environment = DefaultEnvironment
-	}
-
-	return user, nil
-}
-
-func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) {
-	exp.MySQLRequests.Add("Server Queries", 1)
-	exp.MySQLRequests.Set("Last Server", expvar.Func((&exp.Time{Time: time.Now()}).Since))
-
-	rows, err := u.dbase.QueryContext(ctx, fmt.Sprintf(getServerQuery, serverID))
-	if err != nil {
-		exp.MySQLRequests.Add("Server Errors", 1)
-		return nil, fmt.Errorf("querying database: %w", err)
-	} else if err = rows.Err(); err != nil {
-		exp.MySQLRequests.Add("Server Errors", 1)
-		return nil, fmt.Errorf("getting database rows: %w", err)
-	}
-	defer rows.Close()
-
-	var errs error
-
-	for rows.Next() {
-		user := DefaultUser()
-		devAllowed := "0"
-		discord := ""
-
-		err := rows.Scan(&user.APIKey, &devAllowed, &user.Environment, &user.Username, &user.UserID, &discord)
-		if err != nil {
-			exp.MySQLRequests.Add("Server Errors", 1)
-			log.Printf("[ERROR] scanning mysql rows: %v", errs)
-
-			continue
-		}
-
-		if devAllowed != "1" {
-			user.Environment = DefaultEnvironment
-		}
-
-		discordVal := struct {
-			Server string `json:"discordServer"`
-		}{}
-
-		if err = json.Unmarshal([]byte(discord), &discordVal); err != nil {
-			exp.MySQLRequests.Add("Server Errors", 1)
-			log.Printf("[ERROR] mysql json parse: %v", err)
-		}
-
-		if discordVal.Server == serverID {
-			return user, nil
-		}
-	}
-
-	exp.MySQLRequests.Add("Missing Servers", 1)
-
-	return DefaultUser(), nil
 }

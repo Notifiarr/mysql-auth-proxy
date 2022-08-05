@@ -7,11 +7,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
-	"github.com/Notifiarr/mysql-auth-proxy/pkg/cache"
+	"github.com/Notifiarr/mysql-auth-proxy/pkg/exp"
 	"github.com/Notifiarr/mysql-auth-proxy/pkg/userinfo"
 	"github.com/gorilla/mux"
 	apachelog "github.com/lestrrat-go/apache-logformat/v2"
+	"golift.io/cache"
 )
 
 const (
@@ -34,6 +36,7 @@ type server struct {
 	config  *Config
 	ui      *userinfo.UI
 	*mux.Router
+	exp *expvar.Map
 }
 
 // Start runs the app.
@@ -50,12 +53,16 @@ func Start(config *Config) error {
 	log.Printf("HTTP listening at: %s", config.ListenAddr)
 
 	server := &server{
-		users:   cache.New("Users", true),
-		servers: cache.New("Servers", false),
+		users:   cache.New(cache.Config{PruneInterval: 3 * time.Minute}),
+		servers: cache.New(cache.Config{}),
 		config:  config,
 		ui:      ui,
 		Router:  mux.NewRouter(),
+		exp:     exp.GetMap("Incoming HTTP Requests").Init(),
 	}
+
+	exp.AddVar("Users Cache", expvar.Func(server.users.ExpStats))
+	exp.AddVar("Servers Cache", expvar.Func(server.servers.ExpStats))
 
 	return server.startWebServer()
 }
@@ -63,10 +70,12 @@ func Start(config *Config) error {
 func (s *server) startWebServer() error {
 	// functions
 	s.Use(fixForwardedFor)
-	s.Use(countRequests)
+	s.Use(s.countRequests)
 	// handlers
 	s.HandleFunc("/stats", s.handleUserStats).Methods(http.MethodGet).Headers("X-API-Key", "")
 	s.HandleFunc("/stats", s.handleSrvStats).Methods(http.MethodGet).Headers("X-Server", "")
+	s.HandleFunc("/listkeys", s.handeUserList).Methods(http.MethodGet)
+	s.HandleFunc("/listservers", s.handeSrvList).Methods(http.MethodGet)
 	s.Handle("/stats", expvar.Handler()).Methods(http.MethodGet)
 	s.HandleFunc("/auth", s.handleDelKey).Methods(http.MethodDelete).Headers("X-API-Keys", "")
 	s.HandleFunc("/auth", s.handleDelSrv).Methods(http.MethodDelete).Headers("X-Server", "")
