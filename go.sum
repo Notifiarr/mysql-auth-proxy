@@ -25,3 +25,5 @@ github.com/stretchr/testify v1.3.0 h1:TivCn/peBQ7UY8ooIcPgZFpTNSz0Q2U6UrFlUfqbe0
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 golift.io/cache v0.0.0-20220805054831-46d8e6c39fce h1:P0MbJmbY8mkyyc6VpC2dkWIW4/vQOmz8uxgwUbj0YsE=
 golift.io/cache v0.0.0-20220805054831-46d8e6c39fce/go.mod h1:wT61rGyiP50Rg243x5UF8dWBEKSr1RpB0GpgIF5kOGE=
+golift.io/cache v0.0.1 h1:ILFQ5UREVMCmnuLoDH5nfLOY+TNfM3rH4QQ1pS3g6eE=
+golift.io/cache v0.0.1/go.mod h1:wT61rGyiP50Rg243x5UF8dWBEKSr1RpB0GpgIF5kOGE=

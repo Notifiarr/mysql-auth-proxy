@@ -1,0 +1,67 @@
+package userinfo
+
+import (
+	"context"
+	"encoding/json"
+	"expvar"
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/Notifiarr/mysql-auth-proxy/pkg/exp"
+)
+
+const getServerQuery = "SELECT `apikey`,`developmentEnv`,`environment`,`name`,`users`.`id`,CONVERT(FROM_BASE64(`discord`) USING utf8) FROM `users` " +
+	"LEFT JOIN `user_settings` ON (`users`.`id` = `user_id`) WHERE `discordServers` LIKE '%%%[1]s%%' AND discord <> '' AND apikey <> '';"
+
+func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) {
+	u.exp.Add("Server Queries", 1)
+	u.exp.Set("Last Server", expvar.Func((&exp.Time{Time: time.Now()}).Since))
+
+	rows, err := u.dbase.QueryContext(ctx, fmt.Sprintf(getServerQuery, serverID))
+	if err != nil {
+		u.exp.Add("Server Errors", 1)
+		return nil, fmt.Errorf("querying database: %w", err)
+	} else if err = rows.Err(); err != nil {
+		u.exp.Add("Server Errors", 1)
+		return nil, fmt.Errorf("getting database rows: %w", err)
+	}
+	defer rows.Close()
+
+	var errs error
+
+	for rows.Next() {
+		user := DefaultUser()
+		devAllowed := "0"
+		discord := ""
+
+		err := rows.Scan(&user.APIKey, &devAllowed, &user.Environment, &user.Username, &user.UserID, &discord)
+		if err != nil {
+			u.exp.Add("Server Errors", 1)
+			log.Printf("[ERROR] scanning mysql rows: %v", errs)
+
+			continue
+		}
+
+		if devAllowed != "1" {
+			user.Environment = DefaultEnvironment
+		}
+
+		discordVal := struct {
+			Server string `json:"discordServer"`
+		}{}
+
+		if err = json.Unmarshal([]byte(discord), &discordVal); err != nil {
+			u.exp.Add("Server Errors", 1)
+			log.Printf("[ERROR] mysql json parse: %v", err)
+		}
+
+		if discordVal.Server == serverID {
+			return user, nil
+		}
+	}
+
+	u.exp.Add("Missing Servers", 1)
+
+	return DefaultUser(), nil
+}
