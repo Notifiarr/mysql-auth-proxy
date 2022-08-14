@@ -85,13 +85,10 @@ func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, keyRe
 func (s *server) handleDelSrv(resp http.ResponseWriter, req *http.Request) {
 	start := time.Now()
 	user := userinfo.DefaultUser()
+
 	item := s.servers.Get(req.Header.Get("X-Server"))
 
 	defer s.servers.Delete(req.Header.Get("X-Server"))
-
-	if item != nil && item.Data != nil {
-		user, _ = item.Data.(*userinfo.UserInfo)
-	}
 
 	// These headers are mostly for logs.
 	if user != nil && user.UserID != userinfo.DefaultUserID {
@@ -105,9 +102,14 @@ func (s *server) handleDelSrv(resp http.ResponseWriter, req *http.Request) {
 	resp.Header().Set("X-Request-Time", time.Since(start).Round(time.Millisecond).String())
 	resp.WriteHeader(http.StatusOK)
 
-	if err := json.NewEncoder(resp).Encode(item.Data); err != nil {
+	if item == nil {
+		if err := json.NewEncoder(resp).Encode(map[string]any{"exists": false}); err != nil {
+			log.Printf("[ERROR] writing response: %v", err)
+		}
+	} else if err := json.NewEncoder(resp).Encode(item.Data); err != nil {
 		log.Printf("[ERROR] writing response: %v", err)
 	}
+
 }
 
 func (s *server) handleDelKey(resp http.ResponseWriter, req *http.Request) {

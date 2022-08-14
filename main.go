@@ -39,6 +39,7 @@ func main() {
 	config := &webserver.Config{
 		ListenAddr: listen,
 		Password:   password,
+		LogFile:    os.Getenv("LOG_FILE"),
 		Config: &userinfo.Config{
 			Host: os.Getenv("MYSQL_HOST"),
 			User: os.Getenv("MYSQL_USER"),

@@ -14,6 +14,8 @@ import (
 	"github.com/gorilla/mux"
 	apachelog "github.com/lestrrat-go/apache-logformat/v2"
 	"golift.io/cache"
+	"golift.io/rotatorr"
+	"golift.io/rotatorr/timerotator"
 )
 
 const (
@@ -26,6 +28,7 @@ const (
 type Config struct {
 	ListenAddr       string `toml:"listen_addr" xml:"listen_addr"`
 	Password         string `toml:"password" xml:"password"`
+	LogFile          string `toml:"log_file" xml:"log_file"`
 	*userinfo.Config        // contains mysql host, user, pass.
 }
 
@@ -41,8 +44,10 @@ type server struct {
 
 // Start runs the app.
 func Start(config *Config) error {
+	setupLogs(config.LogFile)
 	log.Println("Auth proxy starting up!")
-	log.Printf("DB Host %s, User: %s, DB Name: %s, Password: %v", config.Host, config.User, config.Name, config.Password != "")
+	log.Printf("DB Host %s, Log: %s, User: %s, DB Name: %s, Password: %v",
+		config.Host, config.LogFile, config.User, config.Name, config.Password != "")
 
 	ui, err := userinfo.New(config.Config)
 	if err != nil {
@@ -100,4 +105,22 @@ func (s *server) startWebServer() error {
 	}
 
 	return nil
+}
+
+func setupLogs(logFile string) {
+	if logFile == "" {
+		return
+	}
+
+	writer := rotatorr.NewMust(&rotatorr.Config{
+		Filepath: logFile,         // log file name.
+		FileSize: 5 * 1024 * 1024, // 5 meg
+		FileMode: 0o644,           // set file mode.
+		Rotatorr: &timerotator.Layout{
+			FileCount: 6, // number of files to keep.
+		},
+	})
+
+	os.Stderr = writer.File
+	log.SetOutput(writer)
 }
