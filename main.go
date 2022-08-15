@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"io/ioutil"
 	"log"
 	"os"
 
@@ -18,7 +17,7 @@ func main() {
 
 	pass := os.Getenv("MYSQL_PASS")
 	if fileName := os.Getenv("MYSQL_PASS_FILE"); pass == "" && fileName != "" {
-		fileData, err := ioutil.ReadFile(fileName)
+		fileData, err := os.ReadFile(fileName)
 		if err != nil {
 			log.Fatalf("ERROR: %v", err)
 		}
@@ -28,7 +27,7 @@ func main() {
 
 	password := os.Getenv("SECRET")
 	if fileName := os.Getenv("SECRET_FILE"); password == "" && fileName != "" {
-		fileData, err := ioutil.ReadFile(fileName)
+		fileData, err := os.ReadFile(fileName)
 		if err != nil {
 			log.Fatalf("ERROR: %v", err)
 		}
@@ -40,6 +39,7 @@ func main() {
 		ListenAddr: listen,
 		Password:   password,
 		LogFile:    os.Getenv("LOG_FILE"),
+		ErrorFile:  os.Getenv("ERROR_FILE"),
 		Config: &userinfo.Config{
 			Host: os.Getenv("MYSQL_HOST"),
 			User: os.Getenv("MYSQL_USER"),

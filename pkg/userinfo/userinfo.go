@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"expvar"
 	"fmt"
+	"log"
+	"os"
 	"strings"
 
 	"github.com/Notifiarr/mysql-auth-proxy/pkg/exp"
@@ -23,6 +25,7 @@ type Config struct {
 	User string `toml:"user" xml:"user"`
 	Pass string `toml:"pass" xml:"pass"`
 	Name string `toml:"name" xml:"name"`
+	*log.Logger
 }
 
 // UI provides an interface to query a database for user info.
@@ -30,6 +33,7 @@ type UI struct {
 	config *Config
 	dbase  *sql.DB
 	exp    *expvar.Map
+	*log.Logger
 }
 
 // UserInfo is the data returned for each user request.
@@ -55,6 +59,11 @@ func New(config *Config) (*UI, error) {
 	ui := &UI{
 		config: config,
 		exp:    exp.GetMap("Outgoing MySQL Requests").Init(),
+		Logger: config.Logger,
+	}
+
+	if ui.Logger == nil {
+		ui.Logger = log.New(os.Stderr, "", log.LstdFlags)
 	}
 
 	return ui, ui.Open()

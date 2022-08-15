@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/Notifiarr/mysql-auth-proxy/pkg/exp"
@@ -38,7 +37,7 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 		err := rows.Scan(&user.APIKey, &devAllowed, &user.Environment, &user.Username, &user.UserID, &discord)
 		if err != nil {
 			u.exp.Add("Server Errors", 1)
-			log.Printf("[ERROR] scanning mysql rows: %v", errs)
+			u.Printf("[ERROR] scanning mysql rows: %v", errs)
 
 			continue
 		}
@@ -53,7 +52,7 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 
 		if err = json.Unmarshal([]byte(discord), &discordVal); err != nil {
 			u.exp.Add("Server Errors", 1)
-			log.Printf("[ERROR] mysql json parse: %v", err)
+			u.Printf("[ERROR] mysql json parse: %v", err)
 		}
 
 		if discordVal.Server == serverID {
