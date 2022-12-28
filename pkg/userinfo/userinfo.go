@@ -15,7 +15,7 @@ import (
 // Default user values.
 const (
 	DefaultEnvironment = "live"
-	DefaultUsername    = ""
+	DefaultUsername    = "-"
 	DefaultUserID      = "-1"
 )
 
