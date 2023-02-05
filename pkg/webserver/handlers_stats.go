@@ -40,5 +40,31 @@ func (s *server) noKeyReply(resp http.ResponseWriter, req *http.Request) {
 	resp.Header().Set("X-Key", key)
 	resp.Header().Set("X-API-Key", mux.Vars(req)[apiKey])
 	resp.Header().Set("X-Length", strconv.Itoa(length))
-	resp.WriteHeader(http.StatusUnauthorized)
+
+	if s.RequiresAPIKey(req.URL.Path) {
+		resp.WriteHeader(http.StatusUnauthorized)
+	} else {
+		resp.WriteHeader(http.StatusOK)
+	}
+}
+
+func (s *server) reloadConfig(resp http.ResponseWriter, req *http.Request) {
+	config, err := LoadConfig(s.filePath)
+	if err != nil {
+		http.Error(resp, "Error loading config: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	for _, uriPath := range config.NoAuthPaths {
+		s.addCh <- uriPath
+		<-s.answer
+	}
+
+	http.Error(resp, "Config Reloaded", http.StatusOK)
+}
+
+func (s *server) showConfig(resp http.ResponseWriter, req *http.Request) {
+	if err := json.NewEncoder(resp).Encode(s.Config); err != nil {
+		s.Printf("[ERROR] writing response: %v", err)
+	}
 }

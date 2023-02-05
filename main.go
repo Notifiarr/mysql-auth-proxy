@@ -1,54 +1,23 @@
 package main
 
 import (
-	"bytes"
 	"log"
 	"os"
 
-	"github.com/Notifiarr/mysql-auth-proxy/pkg/userinfo"
 	"github.com/Notifiarr/mysql-auth-proxy/pkg/webserver"
 )
 
+const defaultConfigFile = "/config/proxy.conf"
+
 func main() {
-	listen := os.Getenv("LISTEN_ADDR")
-	if listen == "" {
-		listen = "0.0.0.0:8080"
+	configFile := os.Getenv("AP_CONFIG_FILE")
+	if configFile == "" {
+		configFile = defaultConfigFile
 	}
 
-	pass := os.Getenv("MYSQL_PASS")
-	if fileName := os.Getenv("MYSQL_PASS_FILE"); pass == "" && fileName != "" {
-		fileData, err := os.ReadFile(fileName)
-		if err != nil {
-			log.Fatalf("ERROR: %v", err)
-		}
-
-		pass = string(bytes.TrimSpace(fileData))
-	}
-
-	password := os.Getenv("SECRET")
-	if fileName := os.Getenv("SECRET_FILE"); password == "" && fileName != "" {
-		fileData, err := os.ReadFile(fileName)
-		if err != nil {
-			log.Fatalf("ERROR: %v", err)
-		}
-
-		password = string(bytes.TrimSpace(fileData))
-	}
-
-	config := &webserver.Config{
-		ListenAddr: listen,
-		Password:   password,
-		LogFile:    os.Getenv("LOG_FILE"),
-		ErrorFile:  os.Getenv("ERROR_FILE"),
-		Config: &userinfo.Config{
-			Host: os.Getenv("MYSQL_HOST"),
-			User: os.Getenv("MYSQL_USER"),
-			Pass: pass,
-			Name: os.Getenv("MYSQL_NAME"),
-		},
-	}
-
-	if err := webserver.Start(config); err != nil {
+	if cnfg, err := webserver.LoadConfig(configFile); err != nil {
+		log.Fatalf("ERROR: %v", err)
+	} else if err := webserver.Start(cnfg); err != nil {
 		log.Fatalf("ERROR: %v", err)
 	}
 }

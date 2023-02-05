@@ -1,6 +1,7 @@
 package webserver
 
 import (
+	"bytes"
 	"errors"
 	"expvar"
 	"fmt"
@@ -14,6 +15,8 @@ import (
 	"github.com/gorilla/mux"
 	apachelog "github.com/lestrrat-go/apache-logformat/v2"
 	"golift.io/cache"
+	"golift.io/cnfg"
+	"golift.io/cnfgfile"
 	"golift.io/rotatorr"
 	"golift.io/rotatorr/timerotator"
 )
@@ -26,11 +29,13 @@ const (
 
 // Config is the input data for the server.
 type Config struct {
-	ListenAddr       string `toml:"listen_addr" xml:"listen_addr"`
-	Password         string `toml:"password" xml:"password"`
-	LogFile          string `toml:"log_file" xml:"log_file"`
-	ErrorFile        string `toml:"error_file" xml:"error_file"`
-	*userinfo.Config        // contains mysql host, user, pass, logger.
+	ListenAddr       string   `toml:"listen_addr" xml:"listen_addr" json:"listenAddr"`
+	Password         string   `toml:"password" xml:"password" json:"-"`
+	LogFile          string   `toml:"log_file" xml:"log_file" json:"logFile"`
+	ErrorFile        string   `toml:"error_file" xml:"error_file" json:"errorFile"`
+	NoAuthPaths      []string `toml:"no_auth_paths" xml:"no_auth_path" json:"noAuthPaths"`
+	filePath         string   // path to loaded config file.
+	*userinfo.Config          // contains mysql host, user, pass, logger.
 }
 
 // server holds the running data.
@@ -43,13 +48,63 @@ type server struct {
 	httpLog *log.Logger
 	server  *http.Server
 	errRot  *rotatorr.Logger
+	pathCh  chan string
+	addCh   chan string
+	answer  chan bool
 	*mux.Router
+}
+
+// ErrNoSQLConfig is returned if no mysql config is present.
+var ErrNoSQLConfig = fmt.Errorf("no mysql config present")
+
+// LoadConfig reads in a config file and/or env variables to configure the app.
+func LoadConfig(filename string) (*Config, error) {
+	config := Config{filePath: filename}
+
+	if filename != "" {
+		if err := cnfgfile.Unmarshal(&config, filename); err != nil {
+			return nil, fmt.Errorf("config file: %w", err)
+		}
+	}
+
+	if _, err := cnfg.UnmarshalENV(&config, "AP"); err != nil {
+		return nil, fmt.Errorf("environment variables: %w", err)
+	}
+
+	if config.Config == nil {
+		return nil, ErrNoSQLConfig
+	}
+
+	if config.ListenAddr == "" {
+		config.ListenAddr = "0.0.0.0:8080"
+	}
+
+	if fileName := os.Getenv("AP_MYSQL_PASS_FILE"); config.Config.Pass == "" && fileName != "" {
+		fileData, err := os.ReadFile(fileName)
+		if err != nil {
+			log.Fatalf("ERROR: %v", err)
+		}
+
+		config.Config.Pass = string(bytes.TrimSpace(fileData))
+	}
+
+	if fileName := os.Getenv("AP_SECRET_FILE"); config.Password == "" && fileName != "" {
+		fileData, err := os.ReadFile(fileName)
+		if err != nil {
+			log.Fatalf("ERROR: %v", err)
+		}
+
+		config.Password = string(bytes.TrimSpace(fileData))
+	}
+
+	return &config, nil
 }
 
 // Start runs the app.
 func Start(config *Config) error {
 	server := &server{Config: config}
 
+	server.pathCheck()
 	server.setupLogs()
 	server.Println("Auth proxy starting up!")
 	server.Printf("DB Host %s, Log: %s, Errors: %s, User: %s, DB Name: %s, Password: %v",
@@ -84,6 +139,8 @@ func (s *server) startWebServer() error {
 	s.Use(fixForwardedFor)
 	s.Use(s.countRequests)
 	// human handlers
+	s.HandleFunc("/reload", s.reloadConfig).Methods(http.MethodGet)
+	s.HandleFunc("/stats/config", s.showConfig).Methods(http.MethodGet)
 	s.HandleFunc("/stats/keys", s.handeUserList).Methods(http.MethodGet)
 	s.HandleFunc("/stats/servers", s.handeSrvList).Methods(http.MethodGet)
 	s.HandleFunc("/stats/key/{key}", s.handleUserInfo).Methods(http.MethodGet)
@@ -162,4 +219,33 @@ func (s *server) setupLogs() {
 func (s *server) rotateErrLog(_, _ string) {
 	os.Stderr = s.errRot.File
 	log.SetOutput(s.errRot)
+}
+
+// pathCheck runs in a go routine and handles path checks and adding new paths.
+// When the reload handler is hit it throws new (or existing) no-auth paths into this loop.
+func (s *server) pathCheck() {
+	noAuth := make(map[string]bool)
+	for _, p := range s.NoAuthPaths {
+		noAuth[p] = true
+	}
+
+	s.pathCh = make(chan string)
+	s.addCh = make(chan string)
+	s.answer = make(chan bool)
+
+	for {
+		select {
+		case checkpath := <-s.pathCh:
+			s.answer <- noAuth[checkpath]
+		case addPath := <-s.addCh:
+			noAuth[addPath] = true
+			s.answer <- true
+		}
+	}
+}
+
+// RequiresAPIKey returns true if the requested path requires an api key.
+func (s *server) RequiresAPIKey(uriPath string) bool {
+	s.pathCh <- uriPath
+	return !<-s.answer
 }
