@@ -79,7 +79,7 @@ server {
 
 ```yaml
   auth-proxy:
-    image: docker.io/golift/mysql-auth-proxy
+    image: ghcr.io/notifiarr/mysql-auth-proxy:main
     container_name: auth
     environment:
       - MYSQL_HOST=mysqlhost:3306
