@@ -51,6 +51,8 @@ func (s *server) fixRequestURI(next http.Handler) http.Handler {
 		} else if origURI != "" {
 			req.Header.Set("Referer", origURI)
 		}
+
+		next.ServeHTTP(resp, req)
 	})
 }
 
