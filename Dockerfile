@@ -12,6 +12,7 @@ WORKDIR /build
 RUN apt update && \
     apt install -y tzdata && \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
+    go generate ./... \
     go build ${BUILD_FLAGS} -o /image .
 
 FROM scratch
