@@ -47,11 +47,9 @@ func (s *server) fixRequestURI(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		origURI := req.Header.Get("X-Original-URI")
 		if uri := strings.Split(origURI, "/"); len(uri) > keyPosition {
-			req.Header.Set("x-uri", path.Dir(origURI))
+			req.Header.Set("Referer", path.Dir(origURI))
 		} else if origURI != "" {
-			req.Header.Set("x-uri", origURI)
-		} else {
-			req.Header.Set("x-uri", req.Header.Get("Referer"))
+			req.Header.Set("Referer", origURI)
 		}
 	})
 }
@@ -62,8 +60,7 @@ func (s *server) parseAPIKey(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		key := req.Header.Get("X-API-Key")
 		if len(key) != keyLength {
-			uri := strings.Split(req.Header.Get("X-Original-URI"), "/")
-			if len(uri) > keyPosition {
+			if uri := strings.Split(req.Header.Get("X-Original-URI"), "/"); len(uri) > keyPosition {
 				key = strings.Split(uri[keyPosition], "?")[0]
 			}
 		}

@@ -25,7 +25,7 @@ import (
 
 const (
 	// Apache Log format.
-	alFmt = `%V %{X-Forwarded-For}i "%{X-Username}o" %{X-UserID}o %t "%r" %>s %b "%{x-uri}i" "%{User-agent}i" ` +
+	alFmt = `%V %{X-Forwarded-For}i "%{X-Username}o" %{X-UserID}o %t "%r" %>s %b "%{Referer}i" "%{User-agent}i" ` +
 		`query:%{X-Request-Time}o req:%{ms}Tms age:%{Age}o env:%{X-Environment}o key:%{X-Key}o(%{X-Length}o) "srv:%{X-Server}i"`
 )
 
@@ -140,7 +140,7 @@ func (s *server) start() error {
 func (s *server) startWebServer() error {
 	// functions
 	s.Use(fixForwardedFor)
-	// s.Use(s.fixRequestURI)
+	s.Use(s.fixRequestURI)
 	s.Use(s.countRequests)
 	// api docs
 	s.PathPrefix("/docs/").Handler(http.StripPrefix("/docs/", http.FileServer(docs.AssetFS())))
