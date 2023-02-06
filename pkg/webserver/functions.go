@@ -3,6 +3,7 @@ package webserver
 import (
 	"fmt"
 	"net/http"
+	"path"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -45,9 +46,18 @@ func (s *server) countRequests(next http.Handler) http.Handler {
 // or returns a 401 if no key is found.
 func (s *server) parseAPIKey(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		origURI := req.Header.Get("X-Original-URI")
+		uri := strings.Split(origURI, "/")
+		// This is for the log file.
+		if len(uri) > keyPosition {
+			req.Header.Set("x-uri", path.Dir(origURI))
+		} else {
+			req.Header.Set("x-uri", origURI)
+		}
+
 		key := req.Header.Get("X-API-Key")
 		if len(key) != keyLength {
-			if uri := strings.Split(req.Header.Get("X-Original-URI"), "/"); len(uri) > keyPosition {
+			if len(uri) > keyPosition {
 				key = strings.Split(uri[keyPosition], "?")[0]
 			}
 		}
