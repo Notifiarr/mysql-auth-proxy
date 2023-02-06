@@ -140,6 +140,7 @@ func (s *server) start() error {
 func (s *server) startWebServer() error {
 	// functions
 	s.Use(fixForwardedFor)
+	s.Use(s.fixRequestURI)
 	s.Use(s.countRequests)
 	// api docs
 	s.PathPrefix("/docs/").Handler(http.StripPrefix("/docs/", http.FileServer(docs.AssetFS())))

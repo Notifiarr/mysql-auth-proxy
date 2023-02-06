@@ -42,21 +42,27 @@ func (s *server) countRequests(next http.Handler) http.Handler {
 	})
 }
 
+// fixRequestURI sets a special header that we can log without an API key. That is all.
+func (s *server) fixRequestURI(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		origURI := req.Header.Get("X-Original-URI")
+		if uri := strings.Split(origURI, "/"); len(uri) > keyPosition {
+			req.Header.Set("x-uri", path.Dir(origURI))
+		} else if origURI != "" {
+			req.Header.Set("x-uri", origURI)
+		} else {
+			req.Header.Set("x-uri", req.Header.Get("Referer"))
+		}
+	})
+}
+
 // parseAPIKey sets a valid-lengh api key to a mux var.
 // or returns a 401 if no key is found.
 func (s *server) parseAPIKey(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		origURI := req.Header.Get("X-Original-URI")
-		uri := strings.Split(origURI, "/")
-		// This is for the log file.
-		if len(uri) > keyPosition {
-			req.Header.Set("x-uri", path.Dir(origURI))
-		} else {
-			req.Header.Set("x-uri", origURI)
-		}
-
 		key := req.Header.Get("X-API-Key")
 		if len(key) != keyLength {
+			uri := strings.Split(req.Header.Get("X-Original-URI"), "/")
 			if len(uri) > keyPosition {
 				key = strings.Split(uri[keyPosition], "?")[0]
 			}
