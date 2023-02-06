@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Notifiarr/mysql-auth-proxy/docs"
@@ -229,25 +230,25 @@ func (s *server) rotateErrLog(_, _ string) {
 // pathCheck runs in a go routine and handles path checks and adding new paths.
 // When the reload handler is hit it throws new (or existing) no-auth paths into this loop.
 func (s *server) pathCheck() {
-	noAuth := make(map[string]bool)
-	setupLocalMap := func(paths []string) {
-		noAuth = make(map[string]bool)
-		for _, p := range paths {
-			noAuth[p] = true
-		}
-	}
-	setupLocalMap(s.NoAuthPaths)
-
 	s.pathCh = make(chan string)
 	s.addCh = make(chan []string)
 	s.answer = make(chan bool)
+	checkPath := func(requestURI string) bool {
+		for _, prefix := range s.NoAuthPaths {
+			if strings.HasPrefix(requestURI, prefix) {
+				return true
+			}
+		}
+
+		return false
+	}
 
 	for {
 		select {
 		case checkpath := <-s.pathCh:
-			s.answer <- noAuth[checkpath]
+			s.answer <- checkPath(checkpath)
 		case setPaths := <-s.addCh:
-			setupLocalMap(setPaths)
+			s.NoAuthPaths = setPaths
 			s.answer <- true
 		}
 	}

@@ -108,7 +108,7 @@ func (s *server) noKeyReply(resp http.ResponseWriter, req *http.Request) {
 	resp.Header().Set("X-API-Key", mux.Vars(req)[apiKey])
 	resp.Header().Set("X-Length", strconv.Itoa(length))
 
-	if s.RequiresAPIKey(req.URL.Path) {
+	if s.RequiresAPIKey(req.Header.Get("X-Original-URI")) {
 		resp.WriteHeader(http.StatusUnauthorized)
 	} else {
 		resp.WriteHeader(http.StatusOK)
