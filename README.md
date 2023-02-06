@@ -82,10 +82,10 @@ server {
     image: ghcr.io/notifiarr/mysql-auth-proxy:main
     container_name: auth
     environment:
-      - MYSQL_HOST=mysqlhost:3306
-      - MYSQL_NAME=mysql_db
-      - MYSQL_USER=proxy
-      - MYSQL_PASS_FILE=/password
+      - AP_MYSQL_HOST=mysqlhost:3306
+      - AP_MYSQL_NAME=mysql_db
+      - AP_MYSQL_USER=proxy
+      - AP_MYSQL_PASS_FILE=/password
     ports:
       - 8080:8080
     restart: unless-stopped
