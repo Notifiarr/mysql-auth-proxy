@@ -39,6 +39,26 @@ func (s *server) handleGetKey(resp http.ResponseWriter, req *http.Request) {
 	})
 }
 
+// @Description  Retreive the environment for an API Key or Server ID. This endpoint is designed for auth proxy requests from Nginx.
+// @Description One of X-Server, X-API-Key or X-Original-URI (with an api key in it) must be provided.
+// @Summary      Get user or server environment
+// @Tags         auth
+// @Param        X-Server       header string false "Discord Server ID to route."
+// @Param        X-Password     header string false "Shared website secret. Required when X-Server header is provided."
+// @Param        X-API-Key      header string false "User's API Key to route. May also be provided in X-Original-URI header."
+// @Param        X-Original-URI header string false "User's API Key may be provided in this header at URI position 5: /api/v1/route/method/{key}"
+// @Success      200                         "Body is empty on success, check headers."
+// @Header       200 {string} X-API-Key      "API Key parsed from request."
+// @Header       200 {string} X-Environment  "Environment: live, dev, etc."
+// @Header       200 {string} X-Username     "Username for the user whose API key was provided."
+// @Header       200 {string} X-UserID       "MySQL ID for the user whose API key was provided."
+// @Header       200 {string} Age            "How long this information has been in the cache."
+// @Header       200 {string} X-Request-Time "How long the request elapsed."
+// @Failure      401 {object} string         "invalid request"
+// @Header       401 {string} X-Key          "Masked API Key parsed from request."
+// @Header       401 {string} X-API-Key      "API Key parsed from request."
+// @Header       401 {int}    X-Length       "The length of the API key."
+// @Router       /auth [get]
 func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, keyReq *keyReq) {
 	var (
 		start = time.Now()
@@ -76,6 +96,20 @@ func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, keyRe
 
 	if user.UserID == userinfo.DefaultUserID && (err == nil || errors.Is(err, userinfo.ErrNoUser)) {
 		s.noKeyReply(resp, req)
+	} else {
+		resp.WriteHeader(http.StatusOK)
+	}
+}
+
+// noKeyReply returns a 401.
+func (s *server) noKeyReply(resp http.ResponseWriter, req *http.Request) {
+	key, length := maskAPIKey(mux.Vars(req)[apiKey])
+	resp.Header().Set("X-Key", key)
+	resp.Header().Set("X-API-Key", mux.Vars(req)[apiKey])
+	resp.Header().Set("X-Length", strconv.Itoa(length))
+
+	if s.RequiresAPIKey(req.URL.Path) {
+		resp.WriteHeader(http.StatusUnauthorized)
 	} else {
 		resp.WriteHeader(http.StatusOK)
 	}

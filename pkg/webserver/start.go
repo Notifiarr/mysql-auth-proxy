@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/Notifiarr/mysql-auth-proxy/docs"
 	"github.com/Notifiarr/mysql-auth-proxy/pkg/exp"
 	"github.com/Notifiarr/mysql-auth-proxy/pkg/userinfo"
 	"github.com/gorilla/mux"
@@ -49,7 +50,7 @@ type server struct {
 	server  *http.Server
 	errRot  *rotatorr.Logger
 	pathCh  chan string
-	addCh   chan string
+	addCh   chan []string
 	answer  chan bool
 	*mux.Router
 }
@@ -104,11 +105,12 @@ func LoadConfig(filename string) (*Config, error) {
 func Start(config *Config) error {
 	server := &server{Config: config}
 
-	server.pathCheck()
 	server.setupLogs()
 	server.Println("Auth proxy starting up!")
 	server.Printf("DB Host %s, Log: %s, Errors: %s, User: %s, DB Name: %s, Password: %v",
 		config.Host, config.LogFile, config.ErrorFile, config.User, config.Name, config.Password != "")
+
+	go server.pathCheck()
 
 	return server.start()
 }
@@ -138,7 +140,10 @@ func (s *server) startWebServer() error {
 	// functions
 	s.Use(fixForwardedFor)
 	s.Use(s.countRequests)
+	// api docs
+	s.PathPrefix("/docs/").Handler(http.StripPrefix("/docs/", http.FileServer(docs.AssetFS())))
 	// human handlers
+	s.HandleFunc("/swagger.json", s.handlerSwaggerDoc).Methods(http.MethodGet)
 	s.HandleFunc("/reload", s.reloadConfig).Methods(http.MethodGet)
 	s.HandleFunc("/stats/config", s.showConfig).Methods(http.MethodGet)
 	s.HandleFunc("/stats/keys", s.handeUserList).Methods(http.MethodGet)
@@ -225,20 +230,24 @@ func (s *server) rotateErrLog(_, _ string) {
 // When the reload handler is hit it throws new (or existing) no-auth paths into this loop.
 func (s *server) pathCheck() {
 	noAuth := make(map[string]bool)
-	for _, p := range s.NoAuthPaths {
-		noAuth[p] = true
+	setupLocalMap := func(paths []string) {
+		noAuth = make(map[string]bool)
+		for _, p := range paths {
+			noAuth[p] = true
+		}
 	}
+	setupLocalMap(s.NoAuthPaths)
 
 	s.pathCh = make(chan string)
-	s.addCh = make(chan string)
+	s.addCh = make(chan []string)
 	s.answer = make(chan bool)
 
 	for {
 		select {
 		case checkpath := <-s.pathCh:
 			s.answer <- noAuth[checkpath]
-		case addPath := <-s.addCh:
-			noAuth[addPath] = true
+		case setPaths := <-s.addCh:
+			setupLocalMap(setPaths)
 			s.answer <- true
 		}
 	}
