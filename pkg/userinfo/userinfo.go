@@ -21,11 +21,11 @@ const (
 
 // Config to get user data from the mysql database.
 type Config struct {
-	Host string `toml:"host" xml:"host"`
-	User string `toml:"user" xml:"user"`
-	Pass string `toml:"pass" xml:"pass"`
-	Name string `toml:"name" xml:"name"`
-	*log.Logger
+	Host        string `toml:"host" xml:"host" json:"host"`
+	User        string `toml:"user" xml:"user" json:"user"`
+	Pass        string `toml:"pass" xml:"pass" json:"-"`
+	Name        string `toml:"name" xml:"name" json:"name"`
+	*log.Logger `json:"-"`
 }
 
 // UI provides an interface to query a database for user info.

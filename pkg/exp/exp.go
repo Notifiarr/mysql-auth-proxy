@@ -10,6 +10,12 @@ import (
 
 var mainMap = expvar.NewMap("auth").Init()
 
+// @Description  Retreive internal application statistics.
+// @Summary      Return auth proxy stats
+// @Tags         stats
+// @Produce      json
+// @Success      200  {object} any "Auth Proxy Stats"
+// @Router       /stats [get]
 func init() {
 	start := &Time{Time: time.Now(), Num: 3}
 	mainMap.Set("Uptime", expvar.Func(start.Since))
