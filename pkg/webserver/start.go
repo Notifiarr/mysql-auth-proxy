@@ -105,11 +105,12 @@ func LoadConfig(filename string) (*Config, error) {
 // Start runs the app.
 func Start(config *Config) error {
 	server := &server{Config: config}
-
 	server.setupLogs()
 	server.Println("Auth proxy starting up!")
 	server.Printf("DB Host %s, Log: %s, Errors: %s, User: %s, DB Name: %s, Password: %v",
 		config.Host, config.LogFile, config.ErrorFile, config.User, config.Name, config.Password != "")
+	server.Printf("No-Key-Required Paths (%d): %s",
+		len(config.NoAuthPaths), strings.Join(config.NoAuthPaths, ", "))
 
 	go server.pathCheck()
 
@@ -144,8 +145,8 @@ func (s *server) startWebServer() error {
 	s.Use(s.countRequests)
 	// api docs
 	s.PathPrefix("/docs/").Handler(http.StripPrefix("/docs/", http.FileServer(docs.AssetFS())))
-	// human handlers
 	s.HandleFunc("/swagger.json", s.handlerSwaggerDoc).Methods(http.MethodGet)
+	// human handlers
 	s.HandleFunc("/reload", s.reloadConfig).Methods(http.MethodGet)
 	s.HandleFunc("/stats/config", s.showConfig).Methods(http.MethodGet)
 	s.HandleFunc("/stats/keys", s.handeUserList).Methods(http.MethodGet)
