@@ -9,11 +9,11 @@ RUN mkdir -p $GOPATH/pkg/mod $GOPATH/bin $GOPATH/src /build
 COPY . /build
 WORKDIR /build
 
-RUN apt update && \
-    apt install -y tzdata && \
-    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
-    go generate ./... \
-    go build ${BUILD_FLAGS} -o /image .
+RUN apt update \
+    && apt install -y tzdata \
+    && go generate ./... \
+    && GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
+       go build ${BUILD_FLAGS} -o /image .
 
 FROM scratch
 COPY --from=builder /image /image
