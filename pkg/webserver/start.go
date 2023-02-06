@@ -25,7 +25,7 @@ import (
 
 const (
 	// Apache Log format.
-	alFmt = `%V %{X-Forwarded-For}i "%{X-Username}o" %{X-UserID}o %t "%r" %>s %b "%{Referer}i" "%{User-agent}i" ` +
+	alFmt = `%V %{X-Forwarded-For}i "%{X-Username}o" %{X-UserID}o %t "%r" %>s %b "%{X-Original-Uri}i" "%{User-agent}i" ` +
 		`query:%{X-Request-Time}o req:%{ms}Tms age:%{Age}o env:%{X-Environment}o key:%{X-Key}o(%{X-Length}o) "srv:%{X-Server}i"`
 )
 
