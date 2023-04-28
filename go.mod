@@ -10,7 +10,7 @@ require (
 	github.com/lestrrat-go/apache-logformat/v2 v2.0.6
 	github.com/swaggo/swag v1.8.10
 	golift.io/cache v0.0.2
-	golift.io/cnfg v0.2.1
+	golift.io/cnfg v0.2.2
 	golift.io/cnfgfile v0.0.0-20230210073958-ec0a0d77ab9a
 	golift.io/rotatorr v0.0.0-20230110212846-590e84fecf74
 )
