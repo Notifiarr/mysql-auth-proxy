@@ -20,6 +20,7 @@ func (c *CacheCollector) Describe(ch chan<- *prometheus.Desc) {
 func (c *CacheCollector) Collect(ch chan<- prometheus.Metric) {
 	for label, stats := range c.Stats {
 		cache := stats()
+		ch <- prometheus.MustNewConstMetric(c.counter, prometheus.CounterValue, float64(cache.Size), label, "size")
 		ch <- prometheus.MustNewConstMetric(c.counter, prometheus.CounterValue, float64(cache.Gets), label, "gets")
 		ch <- prometheus.MustNewConstMetric(c.counter, prometheus.CounterValue, float64(cache.Hits), label, "hits")
 		ch <- prometheus.MustNewConstMetric(c.counter, prometheus.CounterValue, float64(cache.Misses), label, "misses")
@@ -67,12 +68,12 @@ func GetMetrics(collector *CacheCollector) *Metrics {
 		QueryTime: promauto.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "db_user_query_time_seconds",
 			Help:    "The duration of user database queries",
-			Buckets: []float64{.1, .2, .3, .4, .5, 1, 2, 3, 4, 5, 10},
+			Buckets: []float64{0.01, 0.05, .1, .2, .5, 1, 5},
 		}, []string{"cache"}),
 		ReqTime: promauto.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "auth_user_request_time_seconds",
 			Help:    "The duration of user auth requests",
-			Buckets: []float64{.1, .2, .3, .4, .5, 1, 2, 3, 4, 5, 10},
+			Buckets: []float64{0.01, 0.05, .1, .2, .5, 1, 5},
 		}, []string{"cache"}),
 	}
 }
