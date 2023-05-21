@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Notifiarr/mysql-auth-proxy/pkg/exp"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const getServerQuery = "SELECT `apikey`,`developmentEnv`,`environment`,`name`,`users`.`id`,CONVERT(FROM_BASE64(`discord`) USING utf8) FROM `users` " +
@@ -16,13 +17,21 @@ const getServerQuery = "SELECT `apikey`,`developmentEnv`,`environment`,`name`,`u
 func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) {
 	u.exp.Add("Server Queries", 1)
 	u.exp.Set("Last Server", expvar.Func((&exp.Time{Time: time.Now()}).Since))
+	u.metrics.Queries.WithLabelValues("servers").Inc()
 
+	timer := prometheus.NewTimer(u.metrics.QueryTime.WithLabelValues("servers"))
 	rows, err := u.dbase.QueryContext(ctx, fmt.Sprintf(getServerQuery, serverID))
+	timer.ObserveDuration()
+
 	if err != nil {
 		u.exp.Add("Server Errors", 1)
+		u.metrics.QueryErrors.WithLabelValues("servers").Inc()
+
 		return nil, fmt.Errorf("querying database: %w", err)
 	} else if err = rows.Err(); err != nil {
 		u.exp.Add("Server Errors", 1)
+		u.metrics.QueryErrors.WithLabelValues("servers").Inc()
+
 		return nil, fmt.Errorf("getting database rows: %w", err)
 	}
 	defer rows.Close()
@@ -38,6 +47,7 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 		if err != nil {
 			u.exp.Add("Server Errors", 1)
 			u.Printf("[ERROR] scanning mysql rows: %v", errs)
+			u.metrics.QueryErrors.WithLabelValues("servers").Inc()
 
 			continue
 		}
@@ -52,6 +62,7 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 
 		if err = json.Unmarshal([]byte(discord), &discordVal); err != nil {
 			u.exp.Add("Server Errors", 1)
+			u.metrics.QueryErrors.WithLabelValues("servers").Inc()
 			u.Printf("[ERROR] mysql json parse: %v", err)
 		}
 
@@ -60,6 +71,7 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 		}
 	}
 
+	u.metrics.QueryMissing.WithLabelValues("servers").Inc()
 	u.exp.Add("Missing Servers", 1)
 
 	return DefaultUser(), nil

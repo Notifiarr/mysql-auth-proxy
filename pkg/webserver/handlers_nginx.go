@@ -9,12 +9,14 @@ import (
 
 	"github.com/Notifiarr/mysql-auth-proxy/pkg/userinfo"
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus"
 	"golift.io/cache"
 )
 
 /* The handlers in this file are used by Nginx. They only return headers. */
 
 type keyReq struct {
+	label string
 	key   string
 	cache *cache.Item
 	get   func(context.Context, string) (*userinfo.UserInfo, error)
@@ -23,6 +25,7 @@ type keyReq struct {
 
 func (s *server) handleServer(resp http.ResponseWriter, req *http.Request) {
 	s.handleGetAny(resp, req, &keyReq{
+		label: "servers",
 		key:   req.Header.Get("X-Server"),
 		cache: s.servers.Get(req.Header.Get("X-Server")),
 		get:   s.ui.GetServer,
@@ -32,6 +35,7 @@ func (s *server) handleServer(resp http.ResponseWriter, req *http.Request) {
 
 func (s *server) handleGetKey(resp http.ResponseWriter, req *http.Request) {
 	s.handleGetAny(resp, req, &keyReq{
+		label: "users",
 		key:   mux.Vars(req)[apiKey],
 		cache: s.users.Get(mux.Vars(req)[apiKey]),
 		get:   s.ui.GetInfo,
@@ -61,8 +65,8 @@ func (s *server) handleGetKey(resp http.ResponseWriter, req *http.Request) {
 // @Router       /auth [get]
 func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, keyReq *keyReq) {
 	var (
-		start = time.Now()
-		when  = start
+		start = prometheus.NewTimer(s.metrics.ReqTime.WithLabelValues(keyReq.label))
+		when  = time.Now()
 		user  *userinfo.UserInfo
 		err   error
 	)
@@ -92,7 +96,7 @@ func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, keyRe
 	resp.Header().Set("X-Username", user.Username)
 	resp.Header().Set("X-UserID", user.UserID)
 	resp.Header().Set("Age", strconv.Itoa(int((time.Since(when).Seconds()))))
-	resp.Header().Set("X-Request-Time", time.Since(start).Round(time.Millisecond).String())
+	resp.Header().Set("X-Request-Time", start.ObserveDuration().Round(time.Millisecond).String())
 
 	if user.UserID == userinfo.DefaultUserID && (err == nil || errors.Is(err, userinfo.ErrNoUser)) {
 		s.noKeyReply(resp, req)
