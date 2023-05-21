@@ -27,7 +27,7 @@ func (c *CacheCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(c.counter, prometheus.CounterValue, float64(cache.Saves), label, "saves")
 		ch <- prometheus.MustNewConstMetric(c.counter, prometheus.CounterValue, float64(cache.Updates), label, "updates")
 		ch <- prometheus.MustNewConstMetric(c.counter, prometheus.CounterValue, float64(cache.Deletes), label, "deletes")
-		ch <- prometheus.MustNewConstMetric(c.counter, prometheus.CounterValue, float64(cache.DelMiss), label, "delete_misses")
+		ch <- prometheus.MustNewConstMetric(c.counter, prometheus.CounterValue, float64(cache.DelMiss), label, "delmiss")
 		ch <- prometheus.MustNewConstMetric(c.counter, prometheus.CounterValue, float64(cache.Pruned), label, "pruned")
 		ch <- prometheus.MustNewConstMetric(c.counter, prometheus.CounterValue, float64(cache.Prunes), label, "prunes")
 		ch <- prometheus.MustNewConstMetric(c.counter, prometheus.CounterValue, float64(cache.Pruning.Nanoseconds()), label, "pruning")
