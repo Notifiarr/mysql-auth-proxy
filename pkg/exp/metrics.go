@@ -35,8 +35,6 @@ func (c *CacheCollector) Collect(ch chan<- prometheus.Metric) {
 }
 
 type Metrics struct {
-	Requests     *prometheus.CounterVec
-	Queries      *prometheus.CounterVec
 	QueryErrors  *prometheus.CounterVec
 	QueryMissing *prometheus.CounterVec
 	QueryTime    *prometheus.HistogramVec
@@ -49,31 +47,23 @@ func GetMetrics(collector *CacheCollector) *Metrics {
 	prometheus.MustRegister(collector)
 
 	return &Metrics{
-		Requests: promauto.NewCounterVec(prometheus.CounterOpts{
-			Name: "auth_user_requests_total",
-			Help: "The total number of user auth requests processed",
-		}, []string{"cache"}),
-		Queries: promauto.NewCounterVec(prometheus.CounterOpts{
-			Name: "db_user_queries_total",
-			Help: "The total number of user DB queries performed",
-		}, []string{"cache"}),
 		QueryErrors: promauto.NewCounterVec(prometheus.CounterOpts{
-			Name: "db_user_query_errors_total",
+			Name: "db_query_errors_total",
 			Help: "The total number of user DB query errors",
 		}, []string{"cache"}),
 		QueryMissing: promauto.NewCounterVec(prometheus.CounterOpts{
-			Name: "db_user_query_missing_total",
+			Name: "db_query_missing_total",
 			Help: "The total number of user DB queries with missing user",
 		}, []string{"cache"}),
 		QueryTime: promauto.NewHistogramVec(prometheus.HistogramOpts{
-			Name:    "db_user_query_time_seconds",
+			Name:    "db_query_time_seconds",
 			Help:    "The duration of user database queries",
 			Buckets: []float64{0.01, 0.05, .1, .2, .5, 1, 5},
 		}, []string{"cache"}),
 		ReqTime: promauto.NewHistogramVec(prometheus.HistogramOpts{
-			Name:    "auth_user_request_time_seconds",
+			Name:    "auth_request_time_seconds",
 			Help:    "The duration of user auth requests",
-			Buckets: []float64{0.01, 0.05, .1, .2, .5, 1, 5},
+			Buckets: []float64{0.005, 0.01, 0.05, .1, .2, .5, 1, 5},
 		}, []string{"cache"}),
 	}
 }

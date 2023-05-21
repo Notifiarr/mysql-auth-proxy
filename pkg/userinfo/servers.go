@@ -17,7 +17,6 @@ const getServerQuery = "SELECT `apikey`,`developmentEnv`,`environment`,`name`,`u
 func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) {
 	u.exp.Add("Server Queries", 1)
 	u.exp.Set("Last Server", expvar.Func((&exp.Time{Time: time.Now()}).Since))
-	u.metrics.Queries.WithLabelValues("servers").Inc()
 
 	timer := prometheus.NewTimer(u.metrics.QueryTime.WithLabelValues("servers"))
 	rows, err := u.dbase.QueryContext(ctx, fmt.Sprintf(getServerQuery, serverID))

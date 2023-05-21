@@ -17,7 +17,6 @@ const getUserQuery = "SELECT `developmentEnv`,`environment`,`name`,`id` FROM `us
 func (u *UI) GetInfo(ctx context.Context, requestKey string) (*UserInfo, error) {
 	u.exp.Add("User Queries", 1)
 	u.exp.Set("Last User", expvar.Func((&exp.Time{Time: time.Now()}).Since))
-	u.metrics.Queries.WithLabelValues("users").Inc()
 
 	timer := prometheus.NewTimer(u.metrics.QueryTime.WithLabelValues("users"))
 	rows, err := u.dbase.QueryContext(ctx, fmt.Sprintf(getUserQuery, requestKey))
