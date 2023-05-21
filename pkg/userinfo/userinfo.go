@@ -30,9 +30,10 @@ type Config struct {
 
 // UI provides an interface to query a database for user info.
 type UI struct {
-	config *Config
-	dbase  *sql.DB
-	exp    *expvar.Map
+	config  *Config
+	dbase   *sql.DB
+	exp     *expvar.Map
+	metrics *exp.Metrics
 	*log.Logger
 }
 
@@ -51,15 +52,16 @@ var (
 )
 
 // New returns a User Info interface.
-func New(config *Config) (*UI, error) {
+func New(config *Config, metrics *exp.Metrics) (*UI, error) {
 	if config == nil {
 		return nil, ErrNoConfig
 	}
 
 	ui := &UI{
-		config: config,
-		exp:    exp.GetMap("Outgoing MySQL Requests").Init(),
-		Logger: config.Logger,
+		metrics: metrics,
+		config:  config,
+		exp:     exp.GetMap("Outgoing MySQL Requests").Init(),
+		Logger:  config.Logger,
 	}
 
 	if ui.Logger == nil {

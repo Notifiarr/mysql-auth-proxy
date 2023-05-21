@@ -16,6 +16,7 @@ import (
 	"github.com/Notifiarr/mysql-auth-proxy/pkg/userinfo"
 	"github.com/gorilla/mux"
 	apachelog "github.com/lestrrat-go/apache-logformat/v2"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golift.io/cache"
 	"golift.io/cnfg"
 	"golift.io/cnfgfile"
@@ -24,6 +25,7 @@ import (
 )
 
 const (
+	timeout = 15 * time.Second
 	// Apache Log format.
 	alFmt = `%V %{X-Forwarded-For}i "%{X-Username}o" %{X-UserID}o %t "%r" %>s %b "%{Referer}i" "%{User-agent}i" ` +
 		`query:%{X-Request-Time}o req:%{ms}Tms age:%{Age}o env:%{X-Environment}o key:%{X-Key}o(%{X-Length}o) "srv:%{X-Server}i"`
@@ -54,6 +56,7 @@ type server struct {
 	addCh   chan []string
 	answer  chan bool
 	*mux.Router
+	metrics *exp.Metrics
 }
 
 // ErrNoSQLConfig is returned if no mysql config is present.
@@ -118,7 +121,18 @@ func Start(config *Config) error {
 }
 
 func (s *server) start() error {
-	ui, err := userinfo.New(s.Config.Config)
+	s.users = cache.New(cache.Config{PruneInterval: 3 * time.Minute})
+	defer s.users.Stop(false)
+
+	s.servers = cache.New(cache.Config{})
+	defer s.servers.Stop(false)
+
+	s.metrics = exp.GetMetrics(&exp.CacheCollector{Stats: exp.CacheList{
+		"servers": s.servers.Stats,
+		"users":   s.users.Stats,
+	}})
+
+	ui, err := userinfo.New(s.Config.Config, s.metrics)
 	if err != nil {
 		return fmt.Errorf("initializing userinfo: %w", err)
 	}
@@ -126,8 +140,6 @@ func (s *server) start() error {
 	s.Println("Initialized MySQL successfully")
 	s.Printf("HTTP listening at: %s", s.ListenAddr)
 
-	s.users = cache.New(cache.Config{PruneInterval: 3 * time.Minute})
-	s.servers = cache.New(cache.Config{})
 	s.ui = ui
 	s.Router = mux.NewRouter()
 	s.exp = exp.GetMap("Incoming HTTP Requests").Init()
@@ -162,6 +174,7 @@ func (s *server) startWebServer() error {
 		Headers("X-Server", "", "X-Password", s.Password)
 	s.Handle("/auth", s.parseAPIKey(http.HandlerFunc(s.handleGetKey))).
 		Methods(http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut)
+	s.Handle("/metrics", promhttp.Handler())
 	// default: go away
 	s.HandleFunc("/", s.noKeyReply)
 
@@ -174,10 +187,10 @@ func (s *server) startWebServer() error {
 	s.server = &http.Server{
 		Addr:              s.ListenAddr,
 		Handler:           apache.Wrap(s.Router, s.httpLog.Writer()),
-		ReadTimeout:       time.Second,
-		ReadHeaderTimeout: time.Second,
-		WriteTimeout:      time.Second,
-		IdleTimeout:       time.Second,
+		ReadTimeout:       timeout,
+		ReadHeaderTimeout: timeout,
+		WriteTimeout:      timeout,
+		IdleTimeout:       timeout,
 		MaxHeaderBytes:    9999,
 		ErrorLog:          s.Logger,
 	}
