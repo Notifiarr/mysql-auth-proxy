@@ -62,12 +62,12 @@ func GetMetrics(collector *CacheCollector) *Metrics {
 		QueryTime: promauto.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "authproxy_db_query_time_seconds",
 			Help:    "The duration of database queries",
-			Buckets: []float64{0.01, 0.05, .1, .2, .5, 1, 5},
+			Buckets: []float64{0.001, 0.005, 0.025, .1, .5, 1, 3},
 		}, []string{"cache"}),
 		ReqTime: promauto.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "authproxy_request_time_seconds",
 			Help:    "The duration of auth requests",
-			Buckets: []float64{0.005, 0.01, 0.05, .1, .2, .5, 1, 5},
+			Buckets: []float64{0.001, 0.005, 0.025, .1, .5, 1, 3},
 		}, []string{"cache"}),
 		Uptime: promauto.NewCounterFunc(prometheus.CounterOpts{
 			Name: "authproxy_uptime",
