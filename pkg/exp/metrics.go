@@ -1,6 +1,8 @@
 package exp
 
 import (
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golift.io/cache"
@@ -40,9 +42,11 @@ type Metrics struct {
 	QueryTime    *prometheus.HistogramVec
 	ReqTime      *prometheus.HistogramVec
 	Cache        *prometheus.CounterVec
+	Uptime       prometheus.CounterFunc
 }
 
 func GetMetrics(collector *CacheCollector) *Metrics {
+	start := time.Now()
 	collector.counter = prometheus.NewDesc("authproxy_cache_counters", "All cache counters", []string{"cache", "counter"}, nil)
 	prometheus.MustRegister(collector)
 
@@ -52,7 +56,7 @@ func GetMetrics(collector *CacheCollector) *Metrics {
 			Help: "The total number of DB query errors",
 		}, []string{"cache"}),
 		QueryMissing: promauto.NewCounterVec(prometheus.CounterOpts{
-			Name: "authproxy_ddb_query_missing_total",
+			Name: "authproxy_db_query_missing_total",
 			Help: "The total number of DB queries with missing user",
 		}, []string{"cache"}),
 		QueryTime: promauto.NewHistogramVec(prometheus.HistogramOpts{
@@ -65,5 +69,9 @@ func GetMetrics(collector *CacheCollector) *Metrics {
 			Help:    "The duration of auth requests",
 			Buckets: []float64{0.005, 0.01, 0.05, .1, .2, .5, 1, 5},
 		}, []string{"cache"}),
+		Uptime: promauto.NewCounterFunc(prometheus.CounterOpts{
+			Name: "authproxy_uptime",
+			Help: "Seconds the auth proxy has been running",
+		}, func() float64 { return time.Since(start).Seconds() }),
 	}
 }
