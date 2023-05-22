@@ -60,7 +60,7 @@ type Metrics struct {
 func GetMetrics(collector *CacheCollector) *Metrics {
 	start := time.Now()
 	collector.counter = prometheus.NewDesc("authproxy_cache_counters", "All cache counters", []string{"cache", "counter"}, nil)
-	collector.gauge = prometheus.NewDesc("authproxy_cache_guages", "All cache gauges", []string{"cache", "gauge"}, nil)
+	collector.gauge = prometheus.NewDesc("authproxy_cache_gauges", "All cache gauges", []string{"cache", "gauge"}, nil)
 	prometheus.MustRegister(collector)
 
 	return &Metrics{
