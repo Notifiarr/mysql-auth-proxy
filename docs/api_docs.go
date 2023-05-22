@@ -162,6 +162,26 @@ const docTemplateapi = `{
                 }
             }
         },
+        "/metrics": {
+            "get": {
+                "description": "Retreive internal application metrics.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stats"
+                ],
+                "summary": "Return auth proxy metrics in open metrics format",
+                "responses": {
+                    "200": {
+                        "description": "Auth Proxy Prometheus metrics",
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                }
+            }
+        },
         "/reload": {
             "get": {
                 "description": "Re-reads the config file and updates the no-auth/no-api-key-required paths.",
