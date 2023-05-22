@@ -15,6 +15,7 @@ type CacheList map[string]func() *cache.Stats
 type CacheCollector struct {
 	Stats   CacheList
 	counter *prometheus.Desc
+	gauge   *prometheus.Desc
 }
 
 // Describe satisfies the Collector interface for prometheus.
@@ -26,7 +27,7 @@ func (c *CacheCollector) Describe(ch chan<- *prometheus.Desc) {
 func (c *CacheCollector) Collect(ch chan<- prometheus.Metric) {
 	for label, stats := range c.Stats {
 		cache := stats()
-		ch <- prometheus.MustNewConstMetric(c.counter, prometheus.GaugeValue, float64(cache.Size), label, "size")
+		ch <- prometheus.MustNewConstMetric(c.gauge, prometheus.GaugeValue, float64(cache.Size), label, "size")
 		ch <- prometheus.MustNewConstMetric(c.counter, prometheus.CounterValue, float64(cache.Gets), label, "gets")
 		ch <- prometheus.MustNewConstMetric(c.counter, prometheus.CounterValue, float64(cache.Hits), label, "hits")
 		ch <- prometheus.MustNewConstMetric(c.counter, prometheus.CounterValue, float64(cache.Misses), label, "misses")
@@ -59,6 +60,7 @@ type Metrics struct {
 func GetMetrics(collector *CacheCollector) *Metrics {
 	start := time.Now()
 	collector.counter = prometheus.NewDesc("authproxy_cache_counters", "All cache counters", []string{"cache", "counter"}, nil)
+	collector.gauge = prometheus.NewDesc("authproxy_cache_guages", "All cache gauges", []string{"cache", "gauge"}, nil)
 	prometheus.MustRegister(collector)
 
 	return &Metrics{
