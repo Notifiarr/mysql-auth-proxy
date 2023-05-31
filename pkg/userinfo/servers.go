@@ -11,14 +11,15 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const getServerQuery = "SELECT `apikey`,`developmentEnv`,`environment`,`name`,`id`,`discordServer` FROM `users` WHERE `discordServer` = '%[1]s';"
+const getServerQuery = "SELECT `apikey`,`developmentEnv`,`environment`,`name`,`id`,`discordServer` " +
+	"FROM `users` WHERE `discordServer` = ?"
 
 func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) {
 	u.exp.Add("Server Queries", 1)
 	u.exp.Set("Last Server", expvar.Func((&exp.Time{Time: time.Now()}).Since))
 
 	timer := prometheus.NewTimer(u.metrics.QueryTime.WithLabelValues("servers"))
-	rows, err := u.dbase.QueryContext(ctx, fmt.Sprintf(getServerQuery, serverID))
+	rows, err := u.dbase.QueryContext(ctx, getServerQuery, serverID)
 	timer.ObserveDuration()
 
 	if err != nil {

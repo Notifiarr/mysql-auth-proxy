@@ -10,8 +10,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const getUserQuery = "SELECT `developmentEnv`,`environment`,`name`,`id` FROM `users` WHERE `apikey`='%[1]s' " +
-	"OR `id`=(SELECT `user_id` FROM `apikeys` WHERE `apikey`='%[1]s' LIMIT 1) LIMIT 1;"
+const getUserQuery = "SELECT `developmentEnv`,`environment`,`name`,`id` FROM `users` WHERE `apikey`= ? " +
+	"OR `id` = (SELECT `user_id` FROM `apikeys` WHERE `apikey`= ? LIMIT 1) LIMIT 1"
 
 // GetInfo returns a user's info from a mysql database.
 func (u *UI) GetInfo(ctx context.Context, requestKey string) (*UserInfo, error) {
@@ -19,7 +19,7 @@ func (u *UI) GetInfo(ctx context.Context, requestKey string) (*UserInfo, error) 
 	u.exp.Set("Last User", expvar.Func((&exp.Time{Time: time.Now()}).Since))
 
 	timer := prometheus.NewTimer(u.metrics.QueryTime.WithLabelValues("users"))
-	rows, err := u.dbase.QueryContext(ctx, fmt.Sprintf(getUserQuery, requestKey))
+	rows, err := u.dbase.QueryContext(ctx, getUserQuery, requestKey, requestKey)
 	timer.ObserveDuration()
 
 	if err != nil {
