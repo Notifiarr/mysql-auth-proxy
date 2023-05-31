@@ -37,7 +37,7 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 	for rows.Next() {
 		user := DefaultUser()
 		devAllowed := "0"
-		discord := uint64(0)
+		discord := ""
 
 		err := rows.Scan(&user.APIKey, &devAllowed, &user.Environment, &user.Username, &user.UserID, &discord)
 		if err != nil {
