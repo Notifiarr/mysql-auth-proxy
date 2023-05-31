@@ -2,7 +2,6 @@ package userinfo
 
 import (
 	"context"
-	"encoding/json"
 	"expvar"
 	"fmt"
 	"time"
@@ -38,7 +37,7 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 	for rows.Next() {
 		user := DefaultUser()
 		devAllowed := "0"
-		discord := ""
+		discord := uint64(0)
 
 		err := rows.Scan(&user.APIKey, &devAllowed, &user.Environment, &user.Username, &user.UserID, &discord)
 		if err != nil {
@@ -53,19 +52,7 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 			user.Environment = DefaultEnvironment
 		}
 
-		discordVal := struct {
-			Server string `json:"discordServer"`
-		}{}
-
-		if err = json.Unmarshal([]byte(discord), &discordVal); err != nil {
-			u.exp.Add("Server Errors", 1)
-			u.metrics.QueryErrors.WithLabelValues("servers").Inc()
-			u.Printf("[ERROR] mysql json parse: %v", err)
-		}
-
-		if discordVal.Server == serverID {
-			return user, nil
-		}
+		return user, nil
 	}
 
 	u.metrics.QueryMissing.WithLabelValues("servers").Inc()
