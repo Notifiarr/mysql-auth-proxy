@@ -11,7 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const getServerQuery = "SELECT `apikey`,`developmentEnv`,`environment`,`name`,`id` FROM `users` WHERE `discordServer` = '%[1]s';"
+const getServerQuery = "SELECT `apikey`,`developmentEnv`,`environment`,`name`,`id`,`discordServer` FROM `users` WHERE `discordServer` = '%[1]s';"
 
 func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) {
 	u.exp.Add("Server Queries", 1)
@@ -34,8 +34,6 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 	}
 	defer rows.Close()
 
-	var errs error
-
 	for rows.Next() {
 		user := DefaultUser()
 		devAllowed := "0"
@@ -44,7 +42,7 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 		err := rows.Scan(&user.APIKey, &devAllowed, &user.Environment, &user.Username, &user.UserID, &discord)
 		if err != nil {
 			u.exp.Add("Server Errors", 1)
-			u.Printf("[ERROR] scanning mysql rows: %v", errs)
+			u.Printf("[ERROR] scanning mysql rows: %v", err)
 			u.metrics.QueryErrors.WithLabelValues("servers").Inc()
 
 			continue
