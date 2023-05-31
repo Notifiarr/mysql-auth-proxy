@@ -11,8 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const getServerQuery = "SELECT `apikey`,`developmentEnv`,`environment`,`name`,`users`.`id`,CONVERT(FROM_BASE64(`discord`) USING utf8) FROM `users` " +
-	"LEFT JOIN `user_settings` ON (`users`.`id` = `user_id`) WHERE `discordServers` LIKE '%%%[1]s%%' AND discord <> '' AND apikey <> '';"
+const getServerQuery = "SELECT `apikey`,`developmentEnv`,`environment`,`name`,`id` FROM `users` WHERE `discordServer` = '%[1]s';"
 
 func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) {
 	u.exp.Add("Server Queries", 1)
