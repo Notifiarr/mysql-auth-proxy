@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/elazarl/go-bindata-assetfs v1.0.1
 	github.com/go-sql-driver/mysql v1.7.1
-	github.com/gorilla/mux v1.8.0
+	github.com/gorilla/mux v1.8.1
 	github.com/hako/durafmt v0.0.0-20210608085754-5c1018a4e16b
 	github.com/lestrrat-go/apache-logformat/v2 v2.0.6
 	github.com/prometheus/client_golang v1.16.0
