@@ -1,6 +1,6 @@
 
 # Build a go app into a minimal docker image with timezone support and SSL cert chains.
-FROM golang:latest@sha256:8269ba28a2798bdf9ca2ecdad99ed0503c61154794fa74f0dc84e35f6b375ae3 as builder
+FROM golang:latest@sha256:acab8ef05990e50fe0bc8446398d93d91fa89b3608661529dbd6744b77fcea90 as builder
 ARG TARGETOS
 ARG TARGETARCH
 ARG BUILD_FLAGS=""
