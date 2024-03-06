@@ -17,24 +17,12 @@ const docTemplateapi = `{
     "paths": {
         "/auth": {
             "get": {
-                "description": "Retreive the environment for an API Key or Server ID. This endpoint is designed for auth proxy requests from Nginx.\nOne of X-Server, X-API-Key or X-Original-URI (with an api key in it) must be provided.",
+                "description": "Retrieve the environment for an API Key or Server ID. This endpoint is designed for auth proxy requests from Nginx.\nEither X-API-Key or X-Original-URI (with an api key in it) must be provided.",
                 "tags": [
                     "auth"
                 ],
                 "summary": "Get user or server environment",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Discord Server ID to route.",
-                        "name": "X-Server",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Shared website secret. Required when X-Server header is provided.",
-                        "name": "X-Password",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "User's API Key to route. May also be provided in X-Original-URI header.",
@@ -101,7 +89,7 @@ const docTemplateapi = `{
                 }
             },
             "delete": {
-                "description": "Delete API Keys or Server IDs from internal cache.  Sending X-Server header deletes a server form cache, and sending X-Api-Keys header deletes API keys from cache.",
+                "description": "Delete API Keys from internal cache.",
                 "produces": [
                     "application/json"
                 ],
@@ -112,13 +100,6 @@ const docTemplateapi = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Discord Server ID to delete.",
-                        "name": "X-Server",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
                         "description": "Comma separated list of API keys to delete.",
                         "name": "X-API-Keys",
                         "in": "header",
@@ -127,7 +108,7 @@ const docTemplateapi = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "List of cached info for API Keys or servers that were deleted.",
+                        "description": "List of cached info for API Keys that were deleted.",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -147,12 +128,6 @@ const docTemplateapi = `{
                             }
                         }
                     },
-                    "208": {
-                        "description": "exists: false is returned when a missing server ID is provided.",
-                        "schema": {
-                            "$ref": "#/definitions/webserver.noExists"
-                        }
-                    },
                     "401": {
                         "description": "invalid request",
                         "schema": {
@@ -164,7 +139,7 @@ const docTemplateapi = `{
         },
         "/metrics": {
             "get": {
-                "description": "Retreive internal application metrics.",
+                "description": "Retrieve internal application metrics.",
                 "produces": [
                     "application/json"
                 ],
@@ -210,7 +185,7 @@ const docTemplateapi = `{
         },
         "/stats": {
             "get": {
-                "description": "Retreive internal application statistics.",
+                "description": "Retrieve internal application statistics.",
                 "produces": [
                     "application/json"
                 ],
@@ -230,7 +205,7 @@ const docTemplateapi = `{
         },
         "/stats/config": {
             "get": {
-                "description": "Retreive auth proxy configuration, minus passwords.",
+                "description": "Retrieve auth proxy configuration, minus passwords.",
                 "produces": [
                     "application/json"
                 ],
@@ -256,7 +231,7 @@ const docTemplateapi = `{
         },
         "/stats/key/{key}": {
             "get": {
-                "description": "Retreive a user's cached info.",
+                "description": "Retrieve a user's cached info.",
                 "produces": [
                     "application/json"
                 ],
@@ -303,7 +278,7 @@ const docTemplateapi = `{
         },
         "/stats/keys": {
             "get": {
-                "description": "Retreive full cached user list.",
+                "description": "Retrieve full cached user list.",
                 "produces": [
                     "application/json"
                 ],
@@ -314,94 +289,6 @@ const docTemplateapi = `{
                 "responses": {
                     "200": {
                         "description": "List of cached API keys. The map key is the API key.",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "allOf": [
-                                    {
-                                        "$ref": "#/definitions/cache.Item"
-                                    },
-                                    {
-                                        "type": "object",
-                                        "properties": {
-                                            "data": {
-                                                "$ref": "#/definitions/userinfo.UserInfo"
-                                            }
-                                        }
-                                    }
-                                ]
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "invalid request",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/stats/server/{key}": {
-            "get": {
-                "description": "Retreive a cached server's info.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "stats"
-                ],
-                "summary": "Return cached server",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Discord Server ID",
-                        "name": "key",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Server's cached info.",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/cache.Item"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/userinfo.UserInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "401": {
-                        "description": "invalid request",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/stats/servers": {
-            "get": {
-                "description": "Retreive full cached server list.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "stats"
-                ],
-                "summary": "Return all cached servers",
-                "responses": {
-                    "200": {
-                        "description": "List of cached servers. The map key is the server ID.",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -490,14 +377,6 @@ const docTemplateapi = `{
                 },
                 "user": {
                     "type": "string"
-                }
-            }
-        },
-        "webserver.noExists": {
-            "type": "object",
-            "properties": {
-                "exists": {
-                    "type": "boolean"
                 }
             }
         }

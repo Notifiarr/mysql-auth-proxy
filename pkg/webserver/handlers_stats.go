@@ -13,20 +13,20 @@ import (
 
 /* This file contains the stats and other handlers. */
 
-// @Description  Retreive full cached user list.
+// @Description  Retrieve full cached user list.
 // @Summary      Return all cached users
 // @Tags         stats
 // @Produce      json
 // @Success      200  {object} map[string]cache.Item{data=userinfo.UserInfo} "List of cached API keys. The map key is the API key."
 // @Failure      401  {object} string "invalid request"
 // @Router       /stats/keys [get]
-func (s *server) handeUserList(resp http.ResponseWriter, req *http.Request) {
+func (s *server) handeUserList(resp http.ResponseWriter, _ *http.Request) {
 	if err := json.NewEncoder(resp).Encode(s.users.List()); err != nil {
 		s.Printf("[ERROR] writing response: %v", err)
 	}
 }
 
-// @Description  Retreive a user's cached info.
+// @Description  Retrieve a user's cached info.
 // @Summary      Return cached user
 // @Tags         stats
 // @Produce      json
@@ -40,33 +40,6 @@ func (s *server) handleUserInfo(resp http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// @Description  Retreive full cached server list.
-// @Summary      Return all cached servers
-// @Tags         stats
-// @Produce      json
-// @Success      200  {object} map[string]cache.Item{data=userinfo.UserInfo} "List of cached servers. The map key is the server ID."
-// @Failure      401  {object} string "invalid request"
-// @Router       /stats/servers [get]
-func (s *server) handeSrvList(resp http.ResponseWriter, req *http.Request) {
-	if err := json.NewEncoder(resp).Encode(s.servers.List()); err != nil {
-		s.Printf("[ERROR] writing response: %v", err)
-	}
-}
-
-// @Description  Retreive a cached server's info.
-// @Summary      Return cached server
-// @Tags         stats
-// @Produce      json
-// @Param        key  path   string  true  "Discord Server ID"
-// @Success      200  {object} cache.Item{data=userinfo.UserInfo} "Server's cached info."
-// @Failure      401  {object} string "invalid request"
-// @Router       /stats/server/{key} [get]
-func (s *server) handleSrvInfo(resp http.ResponseWriter, req *http.Request) {
-	if err := json.NewEncoder(resp).Encode(s.servers.Get(mux.Vars(req)["key"])); err != nil {
-		s.Printf("[ERROR] writing response: %v", err)
-	}
-}
-
 // @Description  Re-reads the config file and updates the no-auth/no-api-key-required paths.
 // @Summary      Updates no-api-required paths
 // @Tags         config
@@ -74,7 +47,7 @@ func (s *server) handleSrvInfo(resp http.ResponseWriter, req *http.Request) {
 // @Success      200  {object} string "config reloaded: true"
 // @Failure      500  {object} string "error reading config"
 // @Router       /reload [get]
-func (s *server) reloadConfig(resp http.ResponseWriter, req *http.Request) {
+func (s *server) reloadConfig(resp http.ResponseWriter, _ *http.Request) {
 	config, err := LoadConfig(s.filePath)
 	if err != nil {
 		http.Error(resp, "Error loading config: "+err.Error(), http.StatusInternalServerError)
@@ -85,20 +58,20 @@ func (s *server) reloadConfig(resp http.ResponseWriter, req *http.Request) {
 	http.Error(resp, fmt.Sprint("Config Reloaded: ", <-s.answer), http.StatusOK)
 }
 
-// @Description  Retreive auth proxy configuration, minus passwords.
+// @Description  Retrieve auth proxy configuration, minus passwords.
 // @Summary      Return auth proxy config
 // @Tags         config
 // @Produce      json
 // @Success      200  {object} Config "Auth Proxy Config"
 // @Failure      401  {object} string "invalid request"
 // @Router       /stats/config [get]
-func (s *server) showConfig(resp http.ResponseWriter, req *http.Request) {
+func (s *server) showConfig(resp http.ResponseWriter, _ *http.Request) {
 	if err := json.NewEncoder(resp).Encode(s.Config); err != nil {
 		s.Printf("[ERROR] writing response: %v", err)
 	}
 }
 
-func (c *server) handlerSwaggerDoc(response http.ResponseWriter, request *http.Request) {
+func (s *server) handlerSwaggerDoc(response http.ResponseWriter, request *http.Request) {
 	instance := strings.TrimSuffix(mux.Vars(request)["instance"], ".json")
 	if instance == "" {
 		instance = "api"

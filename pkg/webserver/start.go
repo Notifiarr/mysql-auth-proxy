@@ -25,10 +25,11 @@ import (
 )
 
 const (
-	timeout = 15 * time.Second
+	pruneInterval = 3 * time.Minute
+	timeout       = 15 * time.Second
 	// Apache Log format.
 	alFmt = `%V %{X-Forwarded-For}i "%{X-Username}o" %{X-UserID}o %t "%r" %>s %b "%{Referer}i" "%{User-agent}i" ` +
-		`query:%{X-Request-Time}o req:%{ms}Tms age:%{Age}o env:%{X-Environment}o key:%{X-Key}o(%{X-Length}o) "srv:%{X-Server}i"`
+		`query:%{X-Request-Time}o req:%{ms}Tms age:%{Age}o env:%{X-Environment}o key:%{X-Key}o(%{X-Length}o)`
 )
 
 // Config is the input data for the server.
@@ -46,7 +47,6 @@ type Config struct {
 type server struct {
 	*Config
 	users   *cache.Cache
-	servers *cache.Cache
 	ui      *userinfo.UI
 	exp     *expvar.Map
 	httpLog *log.Logger
@@ -60,10 +60,10 @@ type server struct {
 }
 
 // ErrNoSQLConfig is returned if no mysql config is present.
-var ErrNoSQLConfig = fmt.Errorf("no mysql config present")
+var ErrNoSQLConfig = errors.New("no mysql config present")
 
 // LoadConfig reads in a config file and/or env variables to configure the app.
-func LoadConfig(filename string) (*Config, error) {
+func LoadConfig(filename string) (*Config, error) { //nolint:cyclop
 	config := Config{filePath: filename}
 
 	if filename != "" {
@@ -121,18 +121,14 @@ func Start(config *Config) error {
 }
 
 func (s *server) start() error {
-	s.users = cache.New(cache.Config{PruneInterval: 3 * time.Minute})
+	s.users = cache.New(cache.Config{PruneInterval: pruneInterval})
 	defer s.users.Stop(false)
 
-	s.servers = cache.New(cache.Config{})
-	defer s.servers.Stop(false)
-
 	s.metrics = exp.GetMetrics(&exp.CacheCollector{Stats: exp.CacheList{
-		"servers": s.servers.Stats,
-		"users":   s.users.Stats,
+		"users": s.users.Stats,
 	}})
 
-	ui, err := userinfo.New(s.Config.Config, s.metrics)
+	usrnfo, err := userinfo.New(s.Config.Config, s.metrics)
 	if err != nil {
 		return fmt.Errorf("initializing userinfo: %w", err)
 	}
@@ -140,12 +136,11 @@ func (s *server) start() error {
 	s.Println("Initialized MySQL successfully")
 	s.Printf("HTTP listening at: %s", s.ListenAddr)
 
-	s.ui = ui
+	s.ui = usrnfo
 	s.Router = mux.NewRouter()
 	s.exp = exp.GetMap("Incoming HTTP Requests").Init()
 
 	exp.AddVar("Users Cache", expvar.Func(s.users.ExpStats))
-	exp.AddVar("Servers Cache", expvar.Func(s.servers.ExpStats))
 
 	return s.startWebServer()
 }
@@ -162,16 +157,11 @@ func (s *server) startWebServer() error {
 	s.HandleFunc("/reload", s.reloadConfig).Methods(http.MethodGet)
 	s.HandleFunc("/stats/config", s.showConfig).Methods(http.MethodGet)
 	s.HandleFunc("/stats/keys", s.handeUserList).Methods(http.MethodGet)
-	s.HandleFunc("/stats/servers", s.handeSrvList).Methods(http.MethodGet)
 	s.HandleFunc("/stats/key/{key}", s.handleUserInfo).Methods(http.MethodGet)
-	s.HandleFunc("/stats/server/{key}", s.handleSrvInfo).Methods(http.MethodGet)
 	s.Handle("/stats", expvar.Handler()).Methods(http.MethodGet)
 	// delete handlers
 	s.HandleFunc("/auth", s.handleDelKey).Methods(http.MethodDelete).Headers("X-API-Keys", "")
-	s.HandleFunc("/auth", s.handleDelSrv).Methods(http.MethodDelete).Headers("X-Server", "")
 	// nginx handlers
-	s.HandleFunc("/auth", s.handleServer).Methods(http.MethodGet, http.MethodHead).
-		Headers("X-Server", "", "X-Password", s.Password)
 	s.Handle("/auth", s.parseAPIKey(http.HandlerFunc(s.handleGetKey))).
 		Methods(http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut)
 	s.Handle("/metrics", promhttp.Handler())
@@ -191,7 +181,6 @@ func (s *server) startWebServer() error {
 		ReadHeaderTimeout: timeout,
 		WriteTimeout:      timeout,
 		IdleTimeout:       timeout,
-		MaxHeaderBytes:    9999,
 		ErrorLog:          s.Logger,
 	}
 	if err = s.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -202,13 +191,20 @@ func (s *server) startWebServer() error {
 }
 
 func (s *server) setupLogs() {
+	const (
+		logFileSize = 50 * 1024 * 1024 // 50 meg
+		keepLogs    = 50
+		divisor     = 2.5
+		fileMode    = 0o644
+	)
+
 	if s.LogFile != "" {
 		s.httpLog = log.New(rotatorr.NewMust(&rotatorr.Config{
-			Filepath: s.LogFile,        // log file name.
-			FileSize: 10 * 1024 * 1024, // 10 meg
-			FileMode: 0o644,            // set file mode.
+			Filepath: s.LogFile, // log file name.
+			FileSize: logFileSize,
+			FileMode: fileMode, // set file mode.
 			Rotatorr: &timerotator.Layout{
-				FileCount: 20, // number of files to keep.
+				FileCount: keepLogs, // number of files to keep.
 			},
 		}), "", 0)
 	} else {
@@ -225,11 +221,11 @@ func (s *server) setupLogs() {
 	}
 
 	s.errRot = rotatorr.NewMust(&rotatorr.Config{
-		Filepath: s.ErrorFile,     // log file name.
-		FileSize: 5 * 1024 * 1024, // 5 meg
-		FileMode: 0o644,           // set file mode.
+		Filepath: s.ErrorFile,           // log file name.
+		FileSize: logFileSize / divisor, // 5 meg
+		FileMode: fileMode,              // set file mode.
 		Rotatorr: &timerotator.Layout{
-			FileCount:  10, // number of files to keep.
+			FileCount:  keepLogs / divisor, // number of files to keep.
 			PostRotate: s.rotateErrLog,
 		},
 	})
