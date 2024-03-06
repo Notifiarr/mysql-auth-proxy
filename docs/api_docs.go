@@ -17,24 +17,12 @@ const docTemplateapi = `{
     "paths": {
         "/auth": {
             "get": {
-                "description": "Retreive the environment for an API Key or Server ID. This endpoint is designed for auth proxy requests from Nginx.\nOne of X-Server, X-API-Key or X-Original-URI (with an api key in it) must be provided.",
+                "description": "Retrieve the environment for an API Key or Server ID. This endpoint is designed for auth proxy requests from Nginx.\nEither X-API-Key or X-Original-URI (with an api key in it) must be provided.",
                 "tags": [
                     "auth"
                 ],
                 "summary": "Get user or server environment",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Discord Server ID to route.",
-                        "name": "X-Server",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Shared website secret. Required when X-Server header is provided.",
-                        "name": "X-Password",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "User's API Key to route. May also be provided in X-Original-URI header.",
@@ -151,7 +139,7 @@ const docTemplateapi = `{
         },
         "/metrics": {
             "get": {
-                "description": "Retreive internal application metrics.",
+                "description": "Retrieve internal application metrics.",
                 "produces": [
                     "application/json"
                 ],
@@ -197,7 +185,7 @@ const docTemplateapi = `{
         },
         "/stats": {
             "get": {
-                "description": "Retreive internal application statistics.",
+                "description": "Retrieve internal application statistics.",
                 "produces": [
                     "application/json"
                 ],
@@ -217,7 +205,7 @@ const docTemplateapi = `{
         },
         "/stats/config": {
             "get": {
-                "description": "Retreive auth proxy configuration, minus passwords.",
+                "description": "Retrieve auth proxy configuration, minus passwords.",
                 "produces": [
                     "application/json"
                 ],
@@ -243,7 +231,7 @@ const docTemplateapi = `{
         },
         "/stats/key/{key}": {
             "get": {
-                "description": "Retreive a user's cached info.",
+                "description": "Retrieve a user's cached info.",
                 "produces": [
                     "application/json"
                 ],
@@ -290,7 +278,7 @@ const docTemplateapi = `{
         },
         "/stats/keys": {
             "get": {
-                "description": "Retreive full cached user list.",
+                "description": "Retrieve full cached user list.",
                 "produces": [
                     "application/json"
                 ],
