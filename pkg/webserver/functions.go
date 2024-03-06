@@ -31,14 +31,10 @@ func (s *server) countRequests(next http.Handler) http.Handler {
 			s.exp.Add("Deletes", 1)
 		}
 
-		if req.Header.Get("X-Server") != "" {
-			s.exp.Add("X-Server", 1)
-		}
-
-		s.exp.Add("Total", 1)
 		wrap := &responseWrapper{ResponseWriter: resp, statusCode: http.StatusOK}
 		next.ServeHTTP(wrap, req)
 		s.exp.Add(fmt.Sprintf("Response %d %s", wrap.statusCode, http.StatusText(wrap.statusCode)), 1)
+		s.exp.Add("Total", 1)
 	})
 }
 
@@ -94,8 +90,10 @@ func fixForwardedFor(next http.Handler) http.Handler {
 }
 
 func maskAPIKey(key string) (string, int) {
+	const showKeyLength = 10
+
 	length := len(key)
-	if length < 10 {
+	if length < showKeyLength {
 		return key, length
 	}
 

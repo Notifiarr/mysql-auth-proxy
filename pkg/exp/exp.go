@@ -10,14 +10,14 @@ import (
 
 var mainMap = expvar.NewMap("auth").Init()
 
-// @Description  Retreive internal application statistics.
+// @Description  Retrieve internal application statistics.
 // @Summary      Return auth proxy stats
 // @Tags         stats
 // @Produce      json
 // @Success      200  {object} any "Auth Proxy Stats"
 // @Router       /stats [get]
-func init() {
-	start := &Time{Time: time.Now(), Num: 3}
+func init() { //nolint:gochecknoinits
+	start := &Time{Time: time.Now(), Places: ThreePlaces}
 	mainMap.Set("Uptime", expvar.Func(start.Since))
 }
 
@@ -39,18 +39,27 @@ func AddVar(name string, newVar expvar.Var) {
 	mainMap.Set(name, newVar)
 }
 
+type TimeLength int
+
+const (
+	DefaultPlaces TimeLength = 2
+	OnePlace      TimeLength = 1
+	TwoPlaces     TimeLength = DefaultPlaces
+	ThreePlaces   TimeLength = 3
+)
+
 // Time allows formatting time Durations.
 type Time struct {
 	time.Time
-	Num int
+	Places TimeLength
 }
 
 // Since returns a pretty-formatted time duration for expvar.
 func (e *Time) Since() interface{} {
-	num := e.Num
+	num := e.Places
 	if num == 0 {
-		num = 2
+		num = DefaultPlaces
 	}
 
-	return durafmt.Parse(time.Since(e.Time)).LimitFirstN(num).String()
+	return durafmt.Parse(time.Since(e.Time)).LimitFirstN(int(num)).String()
 }
