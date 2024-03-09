@@ -69,6 +69,7 @@ server {
     proxy_set_header Content-Length "";
     proxy_set_header X-Original-URI $request_uri;
     proxy_set_header X-API-Key $incoming_api_key;
+    proxy_set_header X-Server $http_X_Server;
     proxy_pass $authproxy/auth;
   }
 }
