@@ -23,6 +23,16 @@ type keyReq struct {
 	save  func(string, interface{}, cache.Options) bool
 }
 
+func (s *server) handleServer(resp http.ResponseWriter, req *http.Request) {
+	s.handleGetAny(resp, req, &keyReq{
+		label: "servers",
+		key:   req.Header.Get("X-Server"),
+		cache: s.servers.Get(req.Header.Get("X-Server")),
+		get:   s.ui.GetServer,
+		save:  s.servers.Save,
+	})
+}
+
 func (s *server) handleGetKey(resp http.ResponseWriter, req *http.Request) {
 	s.handleGetAny(resp, req, &keyReq{
 		label: "users",
@@ -33,10 +43,12 @@ func (s *server) handleGetKey(resp http.ResponseWriter, req *http.Request) {
 	})
 }
 
-// @Description  Retrieve the environment for an API Key or Server ID. This endpoint is designed for auth proxy requests from Nginx.
-// @Description  Either X-API-Key or X-Original-URI (with an api key in it) must be provided.
+// @Description  Retreive the environment for an API Key or Server ID. This endpoint is designed for auth proxy requests from Nginx.
+// @Description One of X-Server, X-API-Key or X-Original-URI (with an api key in it) must be provided.
 // @Summary      Get user or server environment
 // @Tags         auth
+// @Param        X-Server       header string false "Discord Server ID to route."
+// @Param        X-Password     header string false "Shared website secret. Required when X-Server header is provided."
 // @Param        X-API-Key      header string false "User's API Key to route. May also be provided in X-Original-URI header."
 // @Param        X-Original-URI header string false "User's API Key may be provided in this header at URI position 5: /api/v1/route/method/{key}"
 // @Success      200                         "Body is empty on success, check headers."

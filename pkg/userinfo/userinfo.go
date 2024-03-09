@@ -2,7 +2,6 @@ package userinfo
 
 import (
 	"database/sql"
-	"errors"
 	"expvar"
 	"fmt"
 	"log"
@@ -48,8 +47,8 @@ type UserInfo struct {
 
 // Errors returned by this package.
 var (
-	ErrNoConfig = errors.New("config must contain all fields")
-	ErrNoUser   = errors.New("user not found")
+	ErrNoConfig = fmt.Errorf("config must contain all fields")
+	ErrNoUser   = fmt.Errorf("user not found")
 )
 
 // New returns a User Info interface.
@@ -58,18 +57,18 @@ func New(config *Config, metrics *exp.Metrics) (*UI, error) {
 		return nil, ErrNoConfig
 	}
 
-	usrnfo := &UI{
+	ui := &UI{
 		metrics: metrics,
 		config:  config,
 		exp:     exp.GetMap("Outgoing MySQL Requests").Init(),
 		Logger:  config.Logger,
 	}
 
-	if usrnfo.Logger == nil {
-		usrnfo.Logger = log.New(os.Stderr, "", log.LstdFlags)
+	if ui.Logger == nil {
+		ui.Logger = log.New(os.Stderr, "", log.LstdFlags)
 	}
 
-	return usrnfo, usrnfo.Open()
+	return ui, ui.Open()
 }
 
 // Open a mysql database connection.
