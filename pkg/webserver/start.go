@@ -172,7 +172,7 @@ func (s *server) startWebServer() error {
 	s.HandleFunc("/auth", s.handleDelSrv).Methods(http.MethodDelete).Headers("X-Server", "")
 	// nginx handlers
 	s.HandleFunc("/auth", s.handleServer).Methods(http.MethodGet, http.MethodHead).
-		Headers("X-Server", "", "X-Password", s.Password)
+		Headers("X-Server", "", "X-API-Key", s.Password)
 	s.Handle("/auth", s.parseAPIKey(http.HandlerFunc(s.handleGetKey))).
 		Methods(http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut)
 	s.Handle("/metrics", promhttp.Handler())
