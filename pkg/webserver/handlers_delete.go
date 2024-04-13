@@ -49,7 +49,7 @@ func (s *server) handleDelSrv(resp http.ResponseWriter, req *http.Request) {
 	var reply any = noExists{}
 	if item != nil {
 		reply = []*cache.Item{item}
-		resp.WriteHeader(http.StatusOK)
+		resp.WriteHeader(http.StatusOK) //nolint:wsl
 	} else {
 		resp.WriteHeader(http.StatusAlreadyReported)
 	}

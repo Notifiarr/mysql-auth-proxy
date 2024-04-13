@@ -25,7 +25,8 @@ import (
 )
 
 const (
-	timeout = 15 * time.Second
+	pruneInterval = 3 * time.Minute
+	timeout       = 15 * time.Second
 	// Apache Log format.
 	alFmt = `%V %{X-Forwarded-For}i "%{X-Username}o" %{X-UserID}o %t "%r" %>s %b "%{Referer}i" "%{User-agent}i" ` +
 		`query:%{X-Request-Time}o req:%{ms}Tms age:%{Age}o env:%{X-Environment}o key:%{X-Key}o(%{X-Length}o) "srv:%{X-Server}i"`
@@ -60,10 +61,10 @@ type server struct {
 }
 
 // ErrNoSQLConfig is returned if no mysql config is present.
-var ErrNoSQLConfig = fmt.Errorf("no mysql config present")
+var ErrNoSQLConfig = errors.New("no mysql config present")
 
 // LoadConfig reads in a config file and/or env variables to configure the app.
-func LoadConfig(filename string) (*Config, error) {
+func LoadConfig(filename string) (*Config, error) { //nolint:cyclop
 	config := Config{filePath: filename}
 
 	if filename != "" {
@@ -121,7 +122,7 @@ func Start(config *Config) error {
 }
 
 func (s *server) start() error {
-	s.users = cache.New(cache.Config{PruneInterval: 3 * time.Minute})
+	s.users = cache.New(cache.Config{PruneInterval: pruneInterval})
 	defer s.users.Stop(false)
 
 	s.servers = cache.New(cache.Config{})
@@ -132,7 +133,7 @@ func (s *server) start() error {
 		"users":   s.users.Stats,
 	}})
 
-	ui, err := userinfo.New(s.Config.Config, s.metrics)
+	info, err := userinfo.New(s.Config.Config, s.metrics)
 	if err != nil {
 		return fmt.Errorf("initializing userinfo: %w", err)
 	}
@@ -140,7 +141,7 @@ func (s *server) start() error {
 	s.Println("Initialized MySQL successfully")
 	s.Printf("HTTP listening at: %s", s.ListenAddr)
 
-	s.ui = ui
+	s.ui = info
 	s.Router = mux.NewRouter()
 	s.exp = exp.GetMap("Incoming HTTP Requests").Init()
 
@@ -191,7 +192,6 @@ func (s *server) startWebServer() error {
 		ReadHeaderTimeout: timeout,
 		WriteTimeout:      timeout,
 		IdleTimeout:       timeout,
-		MaxHeaderBytes:    9999,
 		ErrorLog:          s.Logger,
 	}
 	if err = s.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -202,13 +202,20 @@ func (s *server) startWebServer() error {
 }
 
 func (s *server) setupLogs() {
+	const (
+		logFileSize = 20 * 1024 * 1024 // 20 meg
+		keepLogs    = 50
+		divisor     = 2 // error log gets the above two values cut in half.
+		fileMode    = 0o644
+	)
+
 	if s.LogFile != "" {
 		s.httpLog = log.New(rotatorr.NewMust(&rotatorr.Config{
-			Filepath: s.LogFile,        // log file name.
-			FileSize: 10 * 1024 * 1024, // 10 meg
-			FileMode: 0o644,            // set file mode.
+			Filepath: s.LogFile, // log file name.
+			FileSize: logFileSize,
+			FileMode: fileMode, // set file mode.
 			Rotatorr: &timerotator.Layout{
-				FileCount: 20, // number of files to keep.
+				FileCount: keepLogs, // number of files to keep.
 			},
 		}), "", 0)
 	} else {
@@ -225,11 +232,11 @@ func (s *server) setupLogs() {
 	}
 
 	s.errRot = rotatorr.NewMust(&rotatorr.Config{
-		Filepath: s.ErrorFile,     // log file name.
-		FileSize: 5 * 1024 * 1024, // 5 meg
-		FileMode: 0o644,           // set file mode.
+		Filepath: s.ErrorFile, // log file name.
+		FileSize: logFileSize / divisor,
+		FileMode: fileMode, // set file mode.
 		Rotatorr: &timerotator.Layout{
-			FileCount:  10, // number of files to keep.
+			FileCount:  keepLogs / divisor, // number of files to keep.
 			PostRotate: s.rotateErrLog,
 		},
 	})

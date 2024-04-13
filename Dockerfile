@@ -13,14 +13,14 @@ RUN apt update \
     && apt install -y tzdata \
     && go generate ./... \
     && GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
-       go build ${BUILD_FLAGS} -o /image .
+       go build ${BUILD_FLAGS} -o /authproxy .
 
 FROM scratch
-COPY --from=builder /image /image
+COPY --from=builder /authproxy /authproxy
 # Make sure we have an ssl cert chain and timezone data.
 COPY --from=builder /etc/ssl /etc/ssl
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 
 ENV TZ=UTC
 
-ENTRYPOINT [ "/image" ]
+ENTRYPOINT [ "/authproxy" ]
