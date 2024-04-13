@@ -98,3 +98,9 @@ server {
 This app is pretty small and lightweight. It can be cross compiled. It can be easily adapted to other uses of a MySQL auth proxy for Nginx.
 
 If you need a custom auth proxy for Nginx and you know Go, this is a good start. Good luck.
+
+## Grafana Dashboard
+
+If you do decide to use this code, the [dashboard](https://github.com/Notifiarr/mysql-auth-proxy/blob/main/grafana-dashboard.json) might prove useful. It looks like this:
+
+[![grafana-dashboard](https://github.com/Notifiarr/mysql-auth-proxy/wiki/images/auth-proxy-dashboard.png "Grafana Dashboard")](https://github.com/Notifiarr/mysql-auth-proxy/wiki/images/auth-proxy-dashboard.png)
