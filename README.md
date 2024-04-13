@@ -32,16 +32,16 @@ map $incoming_api_key $outgoing_api_key {
 # Pick a new Host header based on proxy environment returned.
 # This is what we use this auth proxy for.
 map $proxy_env $redirect_host {
-  default notifiarr.$proxy_env;
-  ''      "notifiarr.com";
-  'live'  "notifiarr.com";
+  default website.$proxy_env;
+  ''      "website.com";
+  'prod'  "website.com";
 }
 
 server {
   set $server https://backend.host;
   set $authproxy http://proxy.host:8080;
-  server_name notifiarr.com;
-  access_log  /config/log/nginx/notifiarr_access.log local;
+  server_name website.com;
+  access_log  /config/log/nginx/access.log local;
 
   listen   443 ssl http2;
   include  /config/nginx/ssl.conf;
@@ -78,6 +78,8 @@ server {
 ### Example Docker Compose
 
 ```yaml
+---
+services:
   auth-proxy:
     image: ghcr.io/notifiarr/mysql-auth-proxy:main
     container_name: auth
