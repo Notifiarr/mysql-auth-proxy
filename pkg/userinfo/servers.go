@@ -19,7 +19,7 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 
 	timer := prometheus.NewTimer(u.metrics.QueryTime.WithLabelValues("servers"))
 	rows, err := u.dbase.QueryContext(ctx, getServerQuery, serverID)
-	timer.ObserveDuration()
+	timer.ObserveDuration() //nolint:wsl
 
 	if err != nil {
 		u.exp.Add("Server Errors", 1)
@@ -32,6 +32,7 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 
 		return nil, fmt.Errorf("getting database rows: %w", err)
 	}
+
 	defer rows.Close()
 
 	for rows.Next() {

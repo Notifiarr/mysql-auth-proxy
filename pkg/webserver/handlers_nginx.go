@@ -43,7 +43,7 @@ func (s *server) handleGetKey(resp http.ResponseWriter, req *http.Request) {
 	})
 }
 
-// @Description  Retreive the environment for an API Key or Server ID. This endpoint is designed for auth proxy requests from Nginx.
+// @Description  Retrieve the environment for an API Key or Server ID. This endpoint is designed for auth proxy requests from Nginx.
 // @Description One of X-Server, X-API-Key or X-Original-URI (with an api key in it) must be provided.
 // @Summary      Get user or server environment
 // @Tags         auth
