@@ -13,7 +13,7 @@ require (
 	golift.io/cache v0.0.2
 	golift.io/cnfg v0.2.3
 	golift.io/cnfgfile v0.0.0-20230531075023-f880041cc0a0
-	golift.io/rotatorr v0.0.0-20230911015553-cd2abbd726c7
+	golift.io/rotatorr v0.0.0-20240723172740-cb73b9c4894c
 )
 
 require (
