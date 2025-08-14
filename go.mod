@@ -12,13 +12,13 @@ require (
 	github.com/swaggo/swag v1.16.3
 	golift.io/cache v0.0.2
 	golift.io/cnfg v0.2.3
-	golift.io/cnfgfile v0.0.0-20230531075023-f880041cc0a0
+	golift.io/cnfgfile v0.0.0-20240713024420-a5436d84eb48
 	golift.io/rotatorr v0.0.0-20230911015553-cd2abbd726c7
 )
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
-	github.com/BurntSushi/toml v1.3.0 // indirect
+	github.com/BurntSushi/toml v1.4.0 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
