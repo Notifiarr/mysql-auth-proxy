@@ -1,6 +1,6 @@
 module github.com/Notifiarr/mysql-auth-proxy
 
-go 1.22
+go 1.24.9
 
 require (
 	github.com/elazarl/go-bindata-assetfs v1.0.1
@@ -13,7 +13,7 @@ require (
 	golift.io/cache v0.0.2
 	golift.io/cnfg v0.2.3
 	golift.io/cnfgfile v0.0.0-20230531075023-f880041cc0a0
-	golift.io/rotatorr v0.0.0-20230911015553-cd2abbd726c7
+	golift.io/rotatorr v0.0.0-20260217050959-f6ac6fc7b38e
 )
 
 require (
