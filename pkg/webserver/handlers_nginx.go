@@ -66,7 +66,7 @@ func (s *server) handleGetKey(resp http.ResponseWriter, req *http.Request) {
 func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, keyReq *keyReq) {
 	var (
 		start = prometheus.NewTimer(s.metrics.ReqTime.WithLabelValues(keyReq.label))
-		when  = time.Now()
+		when  = time.Time{}
 		user  *userinfo.UserInfo
 		err   error
 	)
@@ -77,15 +77,12 @@ func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, keyRe
 	if keyReq.cache != nil && keyReq.cache.Data != nil {
 		user, _ = keyReq.cache.Data.(*userinfo.UserInfo)
 		when = keyReq.cache.Time
+	} else if user, err = keyReq.get(req.Context(), keyReq.key); errors.Is(err, userinfo.ErrNoUser) { //nolint:noinlineerr
+		keyReq.save(keyReq.key, user, cache.Options{Prune: true}) // save the "default user" to the cache.
+	} else if err != nil {
+		s.Printf("[ERROR] %v", err) // database error.
 	} else {
-		switch user, err = keyReq.get(req.Context(), keyReq.key); {
-		case errors.Is(err, userinfo.ErrNoUser):
-			keyReq.save(keyReq.key, user, cache.Options{Prune: true})
-		case err != nil:
-			s.Printf("[ERROR] %v", err)
-		default:
-			keyReq.save(keyReq.key, user, cache.Options{Prune: false})
-		}
+		keyReq.save(keyReq.key, user, cache.Options{Prune: false}) // save the valid user to the cache.
 	}
 
 	if user == nil { // this only happens on error above.
@@ -101,9 +98,11 @@ func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, keyRe
 	resp.Header().Set("Age", strconv.Itoa(int((time.Since(when).Seconds()))))
 	resp.Header().Set("X-Request-Time", start.ObserveDuration().Round(time.Millisecond).String())
 
+	// If the user is the default user, and there was no error, then return a 401.
 	if user.UserID == userinfo.DefaultUserID && (err == nil || errors.Is(err, userinfo.ErrNoUser)) {
 		s.noKeyReply(resp, req)
 	} else {
+		// This may not be right: Server misses may return 200, confirm?
 		resp.WriteHeader(http.StatusOK)
 	}
 }

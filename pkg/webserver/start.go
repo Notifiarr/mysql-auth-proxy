@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Notifiarr/mysql-auth-proxy/docs"
@@ -57,10 +58,9 @@ type server struct {
 	httpLog *log.Logger
 	server  *http.Server
 	errRot  *rotatorr.Logger
-	pathCh  chan string
-	addCh   chan []string
-	answer  chan bool
-	metrics *exp.Metrics
+	// noAuthMu protects NoAuthPaths on the embedded Config (RequiresAPIKey, reload, showConfig).
+	noAuthMu sync.RWMutex
+	metrics  *exp.Metrics
 }
 
 // ErrNoSQLConfig is returned if no mysql config is present.
@@ -120,8 +120,6 @@ func Start(config *Config) error {
 		config.Host, config.LogFile, config.ErrorFile, config.User, config.Name, config.Password != "")
 	server.Printf("No-Key-Required Paths (%d): %s",
 		len(config.NoAuthPaths), strings.Join(config.NoAuthPaths, ", "))
-
-	go server.pathCheck()
 
 	return server.start()
 }
@@ -256,35 +254,16 @@ func (s *server) rotateErrLog(_, _ string) {
 	log.SetOutput(s.errRot)
 }
 
-// pathCheck runs in a go routine and handles path checks and adding new paths.
-// When the reload handler is hit it throws new (or existing) no-auth paths into this loop.
-func (s *server) pathCheck() {
-	s.pathCh = make(chan string)
-	s.addCh = make(chan []string)
-	s.answer = make(chan bool)
-	checkPath := func(requestURI string) bool {
-		for _, prefix := range s.NoAuthPaths {
-			if strings.HasPrefix(requestURI, prefix) {
-				return true
-			}
-		}
-
-		return false
-	}
-
-	for {
-		select {
-		case checkpath := <-s.pathCh:
-			s.answer <- checkPath(checkpath)
-		case setPaths := <-s.addCh:
-			s.NoAuthPaths = setPaths
-			s.answer <- true
-		}
-	}
-}
-
 // RequiresAPIKey returns true if the requested path requires an api key.
 func (s *server) RequiresAPIKey(uriPath string) bool {
-	s.pathCh <- uriPath
-	return !<-s.answer
+	s.noAuthMu.RLock()
+	defer s.noAuthMu.RUnlock()
+
+	for _, prefix := range s.NoAuthPaths {
+		if strings.HasPrefix(uriPath, prefix) {
+			return false
+		}
+	}
+
+	return true
 }
