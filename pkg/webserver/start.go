@@ -123,10 +123,10 @@ func Start(config *Config) error {
 }
 
 func (s *server) start() error {
-	s.users = cache.New(cache.Config{PruneInterval: pruneInterval})
+	s.users = cache.New(cache.Config{PruneInterval: pruneInterval, RequestAccuracy: time.Second})
 	defer s.users.Stop(false)
 
-	s.servers = cache.New(cache.Config{})
+	s.servers = cache.New(cache.Config{RequestAccuracy: time.Second})
 	defer s.servers.Stop(false)
 
 	s.metrics = exp.GetMetrics(&exp.CacheCollector{Stats: exp.CacheList{
