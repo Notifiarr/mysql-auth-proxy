@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Notifiarr/mysql-auth-proxy/pkg/exp"
 	_ "github.com/go-sql-driver/mysql" // We use mysql driver, this is how it's loaded.
@@ -28,6 +29,11 @@ type Config struct {
 	User string `json:"user" toml:"user" xml:"user"`
 	Pass string `json:"-"    toml:"pass" xml:"pass"`
 	Name string `json:"name" toml:"name" xml:"name"`
+	// Pool tuning (optional). Zero values use defaults suitable for high-throughput auth lookups.
+	MaxOpenConns    int           `json:"maxOpenConns,omitempty"    toml:"max_open_conns"     xml:"max_open_conns"`
+	MaxIdleConns    int           `json:"maxIdleConns,omitempty"    toml:"max_idle_conns"     xml:"max_idle_conns"`
+	ConnMaxLifetime time.Duration `json:"connMaxLifetime,omitempty" toml:"conn_max_lifetime"  xml:"conn_max_lifetime"`
+	ConnMaxIdleTime time.Duration `json:"connMaxIdleTime,omitempty" toml:"conn_max_idle_time" xml:"conn_max_idle_time"`
 }
 
 // UI provides an interface to query a database for user info.
@@ -90,9 +96,49 @@ func (u *UI) Open() error {
 		return fmt.Errorf("mysql server %s: connecting: %w", u.config.Host, err)
 	}
 
+	u.applyPoolSettings(dbase)
 	u.dbase = dbase
 
 	return nil
+}
+
+const (
+	defaultMaxOpenConns    = 25
+	defaultMaxIdleConns    = 25
+	defaultConnMaxLifetime = 5 * time.Minute
+	defaultConnMaxIdleTime = 90 * time.Second
+)
+
+// applyPoolSettings applies the pool settings to the database connection.
+func (u *UI) applyPoolSettings(dbase *sql.DB) {
+	maxOpen := u.config.MaxOpenConns
+	if maxOpen <= 0 {
+		maxOpen = defaultMaxOpenConns
+	}
+
+	maxIdle := u.config.MaxIdleConns
+	if maxIdle <= 0 {
+		maxIdle = defaultMaxIdleConns
+	}
+
+	if maxIdle > maxOpen {
+		maxIdle = maxOpen
+	}
+
+	lifetime := u.config.ConnMaxLifetime
+	if lifetime <= 0 {
+		lifetime = defaultConnMaxLifetime
+	}
+
+	idleTime := u.config.ConnMaxIdleTime
+	if idleTime <= 0 {
+		idleTime = defaultConnMaxIdleTime
+	}
+
+	dbase.SetMaxOpenConns(maxOpen)
+	dbase.SetMaxIdleConns(maxIdle)
+	dbase.SetConnMaxLifetime(lifetime)
+	dbase.SetConnMaxIdleTime(idleTime)
 }
 
 // Close the database connection.
@@ -100,7 +146,7 @@ func (u *UI) Close() {
 	_ = u.dbase.Close()
 }
 
-// DefaultUser returns an empty user with default values.
+// DefaultUser returns a new user with default values (safe to mutate, e.g. set APIKey).
 func DefaultUser() *UserInfo {
 	return &UserInfo{
 		Environment: DefaultEnvironment,

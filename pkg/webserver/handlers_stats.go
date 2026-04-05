@@ -2,8 +2,8 @@ package webserver
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/Notifiarr/mysql-auth-proxy/docs"
@@ -85,8 +85,11 @@ func (s *server) reloadConfig(resp http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	s.addCh <- config.NoAuthPaths
-	http.Error(resp, fmt.Sprint("Config Reloaded: ", <-s.answer), http.StatusOK)
+	s.noAuthMu.Lock()
+	s.NoAuthPaths = slices.Clone(config.NoAuthPaths)
+	s.noAuthMu.Unlock()
+
+	http.Error(resp, "Config Reloaded: true", http.StatusOK)
 }
 
 // @Description  Retrieve auth proxy configuration, minus passwords.
@@ -97,6 +100,9 @@ func (s *server) reloadConfig(resp http.ResponseWriter, _ *http.Request) {
 // @Failure      401  {object} string "invalid request"
 // @Router       /stats/config [get]
 func (s *server) showConfig(resp http.ResponseWriter, _ *http.Request) {
+	s.noAuthMu.RLock()
+	defer s.noAuthMu.RUnlock()
+
 	err := json.NewEncoder(resp).Encode(s.Config)
 	if err != nil {
 		s.Printf("[ERROR] writing response: %v", err)
