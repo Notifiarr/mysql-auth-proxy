@@ -1,3 +1,4 @@
+// Package userinfo contains the methods to get Notifiarr user and server information from mysql.
 package userinfo
 
 import (
@@ -13,6 +14,7 @@ import (
 const getServerQuery = "SELECT `apikey`,`developmentEnv`,`environment`,`name`,`id`,`discordServer` " +
 	"FROM `users` WHERE `discordServer` = ?"
 
+// GetServer retrieves a Discord server's information from the database.
 func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) {
 	u.exp.Add("Server Queries", 1)
 	u.exp.Set("Last Server", expvar.Func((&exp.Time{Time: time.Now()}).Since))
@@ -26,14 +28,17 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 		u.metrics.QueryErrors.WithLabelValues("servers").Inc()
 
 		return nil, fmt.Errorf("querying database: %w", err)
-	} else if err = rows.Err(); err != nil {
+	}
+
+	err = rows.Err()
+	if err != nil {
 		u.exp.Add("Server Errors", 1)
 		u.metrics.QueryErrors.WithLabelValues("servers").Inc()
 
 		return nil, fmt.Errorf("getting database rows: %w", err)
 	}
 
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck
 
 	for rows.Next() {
 		user := DefaultUser()

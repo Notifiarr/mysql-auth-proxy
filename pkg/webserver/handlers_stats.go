@@ -21,7 +21,8 @@ import (
 // @Failure      401  {object} string "invalid request"
 // @Router       /stats/keys [get]
 func (s *server) handeUserList(resp http.ResponseWriter, _ *http.Request) {
-	if err := json.NewEncoder(resp).Encode(s.users.List()); err != nil {
+	err := json.NewEncoder(resp).Encode(s.users.List())
+	if err != nil {
 		s.Printf("[ERROR] writing response: %v", err)
 	}
 }
@@ -35,7 +36,8 @@ func (s *server) handeUserList(resp http.ResponseWriter, _ *http.Request) {
 // @Failure      401  {object} string "invalid request"
 // @Router       /stats/key/{key} [get]
 func (s *server) handleUserInfo(resp http.ResponseWriter, req *http.Request) {
-	if err := json.NewEncoder(resp).Encode(s.users.Get(mux.Vars(req)["key"])); err != nil {
+	err := json.NewEncoder(resp).Encode(s.users.Get(mux.Vars(req)["key"]))
+	if err != nil {
 		s.Printf("[ERROR] writing response: %v", err)
 	}
 }
@@ -47,8 +49,11 @@ func (s *server) handleUserInfo(resp http.ResponseWriter, req *http.Request) {
 // @Success      200  {object} map[string]cache.Item{data=userinfo.UserInfo} "List of cached servers. The map key is the server ID."
 // @Failure      401  {object} string "invalid request"
 // @Router       /stats/servers [get]
+//
+//nolint:lll
 func (s *server) handeSrvList(resp http.ResponseWriter, _ *http.Request) {
-	if err := json.NewEncoder(resp).Encode(s.servers.List()); err != nil {
+	err := json.NewEncoder(resp).Encode(s.servers.List())
+	if err != nil {
 		s.Printf("[ERROR] writing response: %v", err)
 	}
 }
@@ -62,7 +67,8 @@ func (s *server) handeSrvList(resp http.ResponseWriter, _ *http.Request) {
 // @Failure      401  {object} string "invalid request"
 // @Router       /stats/server/{key} [get]
 func (s *server) handleSrvInfo(resp http.ResponseWriter, req *http.Request) {
-	if err := json.NewEncoder(resp).Encode(s.servers.Get(mux.Vars(req)["key"])); err != nil {
+	err := json.NewEncoder(resp).Encode(s.servers.Get(mux.Vars(req)["key"]))
+	if err != nil {
 		s.Printf("[ERROR] writing response: %v", err)
 	}
 }
@@ -90,10 +96,12 @@ func (s *server) reloadConfig(resp http.ResponseWriter, _ *http.Request) {
 // @Tags         config
 // @Produce      json
 // @Success      200  {object} Config "Auth Proxy Config"
-// @Failure      401  {object} string "invalid request"
-// @Router       /stats/config [get]
+//
+//	@Failure      401  {object} string "invalid request"
+//	@Router       /stats/config [get]
 func (s *server) showConfig(resp http.ResponseWriter, _ *http.Request) {
-	if err := json.NewEncoder(resp).Encode(s.Config); err != nil {
+	err := json.NewEncoder(resp).Encode(s.Config)
+	if err != nil {
 		s.Printf("[ERROR] writing response: %v", err)
 	}
 }

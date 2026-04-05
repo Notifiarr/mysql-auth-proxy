@@ -1,24 +1,38 @@
- linters:
-   enable-all: true
-   disable:
-     # deprecated
-     - maligned
-     - scopelint
-     - interfacer
-     - golint
-     - ifshort
-     - deadcode
-     - nosnakecase
-     - structcheck
-     - varcheck
-     # unused
-     - exhaustivestruct
-     - exhaustruct
-     - nlreturn
-     - tagalign
-     - depguard
-     - godot
-     - lll
+version: '2'
+linters:
+  default: all
+  disable:
+    - depguard
+    - exhaustruct
+    - nlreturn
+    - wsl
+    - funcorder
+    - lll
+    - godot
+  exclusions:
+    rules:
+      - path: docs/api_docs.go
+        linters:
+          - gochecknoinits
+          - gochecknoglobals
+  settings:
+    gosec:
+      excludes:
+        - G703
+        - G705
+        - G304
+    wsl_v5:
+      allow-first-in-block: true
+      allow-whole-block: false
+      branch-max-lines: 2
+      disable:
+        - assign
+        - expr
+        - send
 
- run:
-  timeout: 3m
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports

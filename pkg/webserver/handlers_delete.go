@@ -37,7 +37,7 @@ func (s *server) handleDelSrv(resp http.ResponseWriter, req *http.Request) {
 
 	// These headers are mostly for logs.
 	if user != nil && user.UserID != userinfo.DefaultUserID {
-		resp.Header().Set("X-UserID", user.UserID)
+		resp.Header().Set("X-Userid", user.UserID)
 		resp.Header().Set("X-Username", user.Username)
 	}
 
@@ -54,14 +54,15 @@ func (s *server) handleDelSrv(resp http.ResponseWriter, req *http.Request) {
 		resp.WriteHeader(http.StatusAlreadyReported)
 	}
 
-	if err := json.NewEncoder(resp).Encode(reply); err != nil {
+	err := json.NewEncoder(resp).Encode(reply)
+	if err != nil {
 		s.Printf("[ERROR] writing response: %v", err)
 	}
 }
 
 func (s *server) handleDelKey(resp http.ResponseWriter, req *http.Request) {
 	start := time.Now()
-	keys := strings.Split(req.Header.Get("X-API-Keys"), ",")
+	keys := strings.Split(req.Header.Get("X-Api-Keys"), ",")
 	infos := make([]*cache.Item, len(keys))
 	user := userinfo.DefaultUser()
 
@@ -75,7 +76,7 @@ func (s *server) handleDelKey(resp http.ResponseWriter, req *http.Request) {
 
 		// Something is better than nothing.
 		if user != nil && user.UserID != userinfo.DefaultUserID {
-			resp.Header().Set("X-UserID", user.UserID)
+			resp.Header().Set("X-Userid", user.UserID)
 			resp.Header().Set("X-Username", user.Username)
 		}
 	}
@@ -86,7 +87,8 @@ func (s *server) handleDelKey(resp http.ResponseWriter, req *http.Request) {
 	resp.Header().Set("X-Request-Time", time.Since(start).Round(time.Millisecond).String())
 	resp.WriteHeader(http.StatusOK)
 
-	if err := json.NewEncoder(resp).Encode(infos); err != nil {
+	err := json.NewEncoder(resp).Encode(infos)
+	if err != nil {
 		s.Printf("[ERROR] writing response: %v", err)
 	}
 }

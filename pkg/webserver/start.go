@@ -29,23 +29,27 @@ const (
 	timeout       = 15 * time.Second
 	// Apache Log format.
 	alFmt = `%V %{X-Forwarded-For}i "%{X-Username}o" %{X-UserID}o %t "%r" %>s %b "%{Referer}i" "%{User-agent}i" ` +
-		`query:%{X-Request-Time}o req:%{ms}Tms age:%{Age}o env:%{X-Environment}o key:%{X-Key}o(%{X-Length}o) "srv:%{X-Server}i"`
+		`query:%{X-Request-Time}o req:%{ms}Tms age:%{Age}o env:%{X-Environment}o key:%{X-Key}o(%{X-Length}o) ` +
+		`"srv:%{X-Server}i"`
 )
 
 // Config is the input data for the server.
 type Config struct {
-	ListenAddr       string   `toml:"listen_addr" xml:"listen_addr" json:"listenAddr"`
-	Password         string   `toml:"password" xml:"password" json:"-"`
-	LogFile          string   `toml:"log_file" xml:"log_file" json:"logFile"`
-	ErrorFile        string   `toml:"error_file" xml:"error_file" json:"errorFile"`
-	NoAuthPaths      []string `toml:"no_auth_paths" xml:"no_auth_path" json:"noAuthPaths"`
-	filePath         string   // path to loaded config file.
-	*userinfo.Config          // contains mysql host, user, pass, logger.
+	*userinfo.Config // contains mysql host, user, pass, logger.
+
+	ListenAddr  string   `json:"listenAddr"  toml:"listen_addr"   xml:"listen_addr"`
+	Password    string   `json:"-"           toml:"password"      xml:"password"`
+	LogFile     string   `json:"logFile"     toml:"log_file"      xml:"log_file"`
+	ErrorFile   string   `json:"errorFile"   toml:"error_file"    xml:"error_file"`
+	NoAuthPaths []string `json:"noAuthPaths" toml:"no_auth_paths" xml:"no_auth_path"`
+	filePath    string   // path to loaded config file.
 }
 
 // server holds the running data.
 type server struct {
 	*Config
+	*mux.Router
+
 	users   *cache.Cache
 	servers *cache.Cache
 	ui      *userinfo.UI
@@ -56,7 +60,6 @@ type server struct {
 	pathCh  chan string
 	addCh   chan []string
 	answer  chan bool
-	*mux.Router
 	metrics *exp.Metrics
 }
 
@@ -68,12 +71,14 @@ func LoadConfig(filename string) (*Config, error) { //nolint:cyclop
 	config := Config{filePath: filename}
 
 	if filename != "" {
-		if err := cnfgfile.Unmarshal(&config, filename); err != nil {
+		err := cnfgfile.Unmarshal(&config, filename)
+		if err != nil {
 			return nil, fmt.Errorf("config file: %w", err)
 		}
 	}
 
-	if _, err := cnfg.UnmarshalENV(&config, "AP"); err != nil {
+	_, err := cnfg.UnmarshalENV(&config, "AP")
+	if err != nil {
 		return nil, fmt.Errorf("environment variables: %w", err)
 	}
 
@@ -85,13 +90,13 @@ func LoadConfig(filename string) (*Config, error) { //nolint:cyclop
 		config.ListenAddr = "0.0.0.0:8080"
 	}
 
-	if fileName := os.Getenv("AP_MYSQL_PASS_FILE"); config.Config.Pass == "" && fileName != "" {
+	if fileName := os.Getenv("AP_MYSQL_PASS_FILE"); config.Pass == "" && fileName != "" {
 		fileData, err := os.ReadFile(fileName)
 		if err != nil {
 			log.Fatalf("ERROR: %v", err)
 		}
 
-		config.Config.Pass = string(bytes.TrimSpace(fileData))
+		config.Pass = string(bytes.TrimSpace(fileData))
 	}
 
 	if fileName := os.Getenv("AP_SECRET_FILE"); config.Password == "" && fileName != "" {
@@ -194,7 +199,9 @@ func (s *server) startWebServer() error {
 		IdleTimeout:       timeout,
 		ErrorLog:          s.Logger,
 	}
-	if err = s.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+
+	err = s.server.ListenAndServe()
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("cannot start web server: %w", err)
 	}
 

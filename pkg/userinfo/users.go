@@ -27,14 +27,17 @@ func (u *UI) GetInfo(ctx context.Context, requestKey string) (*UserInfo, error) 
 		u.exp.Add("User Errors", 1)
 
 		return nil, fmt.Errorf("querying database: %w", err)
-	} else if err = rows.Err(); err != nil {
+	}
+
+	err = rows.Err()
+	if err != nil {
 		u.metrics.QueryErrors.WithLabelValues("users").Inc()
 		u.exp.Add("User Errors", 1)
 
 		return nil, fmt.Errorf("getting database rows: %w", err)
 	}
 
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck
 
 	user := DefaultUser()
 	user.APIKey = requestKey

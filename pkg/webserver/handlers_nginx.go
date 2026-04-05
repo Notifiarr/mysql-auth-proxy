@@ -20,7 +20,7 @@ type keyReq struct {
 	key   string
 	cache *cache.Item
 	get   func(context.Context, string) (*userinfo.UserInfo, error)
-	save  func(string, interface{}, cache.Options) bool
+	save  func(string, any, cache.Options) bool
 }
 
 func (s *server) handleServer(resp http.ResponseWriter, req *http.Request) {
@@ -77,7 +77,7 @@ func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, keyRe
 	if keyReq.cache != nil && keyReq.cache.Data != nil {
 		user, _ = keyReq.cache.Data.(*userinfo.UserInfo)
 		when = keyReq.cache.Time
-	} else if user, err = keyReq.get(req.Context(), keyReq.key); errors.Is(err, userinfo.ErrNoUser) {
+	} else if user, err = keyReq.get(req.Context(), keyReq.key); errors.Is(err, userinfo.ErrNoUser) { //nolint:noinlineerr
 		keyReq.save(keyReq.key, user, cache.Options{Prune: true})
 	} else if err != nil {
 		s.Printf("[ERROR] %v", err)
@@ -91,10 +91,10 @@ func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, keyRe
 		s.Println("[ERROR] user missing from cache or lookup", key, length)
 	}
 
-	resp.Header().Set("X-API-Key", user.APIKey)
+	resp.Header().Set("X-Api-Key", user.APIKey)
 	resp.Header().Set("X-Environment", user.Environment)
 	resp.Header().Set("X-Username", user.Username)
-	resp.Header().Set("X-UserID", user.UserID)
+	resp.Header().Set("X-Userid", user.UserID)
 	resp.Header().Set("Age", strconv.Itoa(int((time.Since(when).Seconds()))))
 	resp.Header().Set("X-Request-Time", start.ObserveDuration().Round(time.Millisecond).String())
 
@@ -109,10 +109,10 @@ func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, keyRe
 func (s *server) noKeyReply(resp http.ResponseWriter, req *http.Request) {
 	key, length := maskAPIKey(mux.Vars(req)[apiKey])
 	resp.Header().Set("X-Key", key)
-	resp.Header().Set("X-API-Key", mux.Vars(req)[apiKey])
+	resp.Header().Set("X-Api-Key", mux.Vars(req)[apiKey])
 	resp.Header().Set("X-Length", strconv.Itoa(length))
 
-	if s.RequiresAPIKey(req.Header.Get("X-Original-URI")) {
+	if s.RequiresAPIKey(req.Header.Get("X-Original-Uri")) {
 		resp.WriteHeader(http.StatusUnauthorized)
 	} else {
 		resp.WriteHeader(http.StatusOK)
