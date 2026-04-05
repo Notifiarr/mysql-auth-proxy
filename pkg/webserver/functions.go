@@ -18,6 +18,27 @@ const (
 	keyPosition = 5        // example: /api/v1/route/method/apikey
 )
 
+// pathSegment returns the idx-th element of strings.Split(pathStr, "/") using strings.SplitSeq
+// so the full split slice is not allocated.
+func pathSegment(pathStr string, idx int) string {
+	segIdx := 0
+
+	for seg := range strings.SplitSeq(pathStr, "/") {
+		if segIdx == idx {
+			before, _, found := strings.Cut(seg, "?")
+			if found {
+				return before
+			}
+
+			return seg
+		}
+
+		segIdx++
+	}
+
+	return ""
+}
+
 type responseWrapper struct {
 	http.ResponseWriter
 
@@ -68,12 +89,23 @@ func (s *server) parseAPIKey(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		key := req.Header.Get("X-Api-Key")
 		if len(key) != keyLength {
-			if uri := strings.Split(req.Header.Get("X-Original-Uri"), "/"); len(uri) > keyPosition {
-				key = strings.Split(uri[keyPosition], "?")[0]
-			}
+			key = pathSegment(req.Header.Get("X-Original-Uri"), keyPosition)
 		}
 
-		req = mux.SetURLVars(req, map[string]string{apiKey: key})
+		pooled := s.apiKeyVarsPool.Get()
+
+		urlVars, ok := pooled.(map[string]string)
+		if !ok {
+			urlVars = make(map[string]string, 1)
+		}
+
+		urlVars[apiKey] = key
+		req = mux.SetURLVars(req, urlVars)
+
+		defer func() {
+			delete(urlVars, apiKey)
+			s.apiKeyVarsPool.Put(urlVars)
+		}()
 
 		if len(key) != keyLength {
 			s.metrics.HTTPRequests.WithLabelValues(exp.HTTPEventInvalidKey).Inc()
