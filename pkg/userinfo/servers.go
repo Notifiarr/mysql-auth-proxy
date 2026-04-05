@@ -30,14 +30,6 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 		return nil, fmt.Errorf("querying database: %w", err)
 	}
 
-	err = rows.Err()
-	if err != nil {
-		u.exp.Add("Server Errors", 1)
-		u.metrics.QueryErrors.WithLabelValues("servers").Inc()
-
-		return nil, fmt.Errorf("getting database rows: %w", err)
-	}
-
 	defer rows.Close() //nolint:errcheck
 
 	for rows.Next() {
@@ -59,6 +51,14 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 		}
 
 		return user, nil
+	}
+
+	err = rows.Err()
+	if err != nil {
+		u.exp.Add("Server Errors", 1)
+		u.metrics.QueryErrors.WithLabelValues("servers").Inc()
+
+		return nil, fmt.Errorf("iterating database rows: %w", err)
 	}
 
 	u.metrics.QueryMissing.WithLabelValues("servers").Inc()

@@ -29,20 +29,20 @@ func (u *UI) GetInfo(ctx context.Context, requestKey string) (*UserInfo, error) 
 		return nil, fmt.Errorf("querying database: %w", err)
 	}
 
-	err = rows.Err()
-	if err != nil {
-		u.metrics.QueryErrors.WithLabelValues("users").Inc()
-		u.exp.Add("User Errors", 1)
-
-		return nil, fmt.Errorf("getting database rows: %w", err)
-	}
-
 	defer rows.Close() //nolint:errcheck
 
 	user := DefaultUser()
 	user.APIKey = requestKey
 
 	if !rows.Next() {
+		err = rows.Err()
+		if err != nil {
+			u.metrics.QueryErrors.WithLabelValues("users").Inc()
+			u.exp.Add("User Errors", 1)
+
+			return nil, fmt.Errorf("iterating database rows: %w", err)
+		}
+
 		u.metrics.QueryMissing.WithLabelValues("users").Inc()
 		u.exp.Add("Missing Users", 1)
 
@@ -57,6 +57,13 @@ func (u *UI) GetInfo(ctx context.Context, requestKey string) (*UserInfo, error) 
 		u.exp.Add("User Errors", 1)
 
 		return nil, fmt.Errorf("scanning database rows: %w", err)
+	}
+
+	err = rows.Err()
+	if err != nil { // we do not care at this point, scan on the first row worked fine...?
+		u.metrics.QueryErrors.WithLabelValues("users").Inc()
+		u.exp.Add("User Errors", 1)
+		u.Printf("[ERROR] iterating database rows (ignored): %v", err)
 	}
 
 	if devAllowed != "1" {
