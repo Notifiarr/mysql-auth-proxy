@@ -24,7 +24,7 @@ type keyReq struct {
 
 func (s *server) handleServer(resp http.ResponseWriter, req *http.Request) {
 	key := req.Header.Get("X-Server")
-	s.handleGetAny(resp, req, &keyReq{
+	s.handleGetAny(resp, req, keyReq{
 		label: "servers",
 		key:   key,
 		cache: s.servers.Get(key),
@@ -35,7 +35,7 @@ func (s *server) handleServer(resp http.ResponseWriter, req *http.Request) {
 
 func (s *server) handleGetKey(resp http.ResponseWriter, req *http.Request) {
 	key := mux.Vars(req)[apiKey]
-	s.handleGetAny(resp, req, &keyReq{
+	s.handleGetAny(resp, req, keyReq{
 		label: "users",
 		key:   key,
 		cache: s.users.Get(key),
@@ -64,44 +64,63 @@ func (s *server) handleGetKey(resp http.ResponseWriter, req *http.Request) {
 // @Header       401 {string} X-API-Key      "API Key parsed from request."
 // @Header       401 {int}    X-Length       "The length of the API key."
 // @Router       /auth [get]
-func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, keyReq *keyReq) {
+func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, keyReq keyReq) {
 	var (
 		start = time.Now()
-		when  = start
+		hit   = false
 		user  *userinfo.UserInfo
+		when  time.Time
 		err   error
 	)
 
-	// Check if the cached data is nil or real.
-	// If the cached data is nil, then pull fresh data.
-	// If the fresh data pull has no error, then cache it.
 	if keyReq.cache != nil && keyReq.cache.Data != nil {
-		user, _ = keyReq.cache.Data.(*userinfo.UserInfo)
-		when = keyReq.cache.Time
-	} else if user, err = keyReq.get(req.Context(), keyReq.key); errors.Is(err, userinfo.ErrNoUser) { //nolint:noinlineerr
-		keyReq.save(keyReq.key, user, cache.Options{Prune: true}) // save the "default user" to the cache.
-	} else if err != nil {
-		s.Printf("[ERROR] %v", err) // database error.
-	} else {
-		keyReq.save(keyReq.key, user, cache.Options{Prune: false}) // save the valid user to the cache.
+		u, ok := keyReq.cache.Data.(*userinfo.UserInfo)
+		if ok && u != nil {
+			user = u
+			when = keyReq.cache.Time
+			hit = true
+		}
 	}
 
-	if user == nil { // this only happens on error above.
-		user = userinfo.DefaultUser()
-		key, length := maskAPIKey(keyReq.key)
-		s.Println("[ERROR] user missing from cache or lookup", key, length)
+	if !hit {
+		when = start
+
+		switch user, err = keyReq.get(req.Context(), keyReq.key); {
+		case errors.Is(err, userinfo.ErrNoUser):
+			keyReq.save(keyReq.key, user, cache.Options{Prune: true}) // save the "default user" to the cache.
+		case err != nil:
+			s.Printf("[ERROR] %v", err) // database error.
+		default:
+			keyReq.save(keyReq.key, user, cache.Options{Prune: false}) // save the valid user to the cache.
+		}
+
+		if user == nil { // this only happens on error above.
+			user = userinfo.DefaultUser()
+			key, length := maskAPIKey(keyReq.key)
+			s.Println("[ERROR] user missing from cache or lookup", key, length)
+		}
 	}
 
-	elapsed := time.Since(start)
-	s.metrics.ReqTime.WithLabelValues(keyReq.label).Observe(elapsed.Seconds())
+	s.writeAuthResult(resp, req, keyReq.label, user, err, when, start)
+}
 
-	resp.Header().Set("X-Request-Time", elapsed.Round(time.Millisecond).String())
+func (s *server) writeAuthResult(
+	resp http.ResponseWriter,
+	req *http.Request,
+	label string,
+	user *userinfo.UserInfo,
+	err error,
+	when time.Time,
+	start time.Time,
+) {
+	finished := time.Now()
+	s.metrics.ReqTime.WithLabelValues(label).Observe(finished.Sub(start).Seconds())
+	resp.Header().Set("X-Request-Time", finished.Sub(start).Round(time.Millisecond).String())
 	resp.Header().Set("X-Api-Key", user.APIKey)
 	resp.Header().Set("X-Environment", user.Environment)
 	resp.Header().Set("X-Username", user.Username)
 	resp.Header().Set("X-Userid", user.UserID)
-	resp.Header().Set("Age", strconv.Itoa(int((time.Since(when).Seconds()))))
-
+	resp.Header().Set("Age", strconv.Itoa(int(finished.Sub(when).Seconds())))
 	// If the user is the default user, and there was no error, then return a 401.
 	if user.UserID == userinfo.DefaultUserID && (err == nil || errors.Is(err, userinfo.ErrNoUser)) {
 		s.noKeyReply(resp, req)
