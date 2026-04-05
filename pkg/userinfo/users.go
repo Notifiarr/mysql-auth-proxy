@@ -20,7 +20,7 @@ func (u *UI) GetInfo(ctx context.Context, requestKey string) (*UserInfo, error) 
 
 	timer := prometheus.NewTimer(u.metrics.QueryTime.WithLabelValues("users"))
 	rows, err := u.dbase.QueryContext(ctx, getUserQuery, requestKey, requestKey)
-	timer.ObserveDuration() //nolint:wsl
+	timer.ObserveDuration()
 
 	if err != nil {
 		u.metrics.QueryErrors.WithLabelValues("users").Inc()

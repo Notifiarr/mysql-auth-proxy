@@ -77,12 +77,15 @@ func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, keyRe
 	if keyReq.cache != nil && keyReq.cache.Data != nil {
 		user, _ = keyReq.cache.Data.(*userinfo.UserInfo)
 		when = keyReq.cache.Time
-	} else if user, err = keyReq.get(req.Context(), keyReq.key); errors.Is(err, userinfo.ErrNoUser) { //nolint:noinlineerr
-		keyReq.save(keyReq.key, user, cache.Options{Prune: true})
-	} else if err != nil {
-		s.Printf("[ERROR] %v", err)
 	} else {
-		keyReq.save(keyReq.key, user, cache.Options{Prune: false})
+		switch user, err = keyReq.get(req.Context(), keyReq.key); {
+		case errors.Is(err, userinfo.ErrNoUser):
+			keyReq.save(keyReq.key, user, cache.Options{Prune: true})
+		case err != nil:
+			s.Printf("[ERROR] %v", err)
+		default:
+			keyReq.save(keyReq.key, user, cache.Options{Prune: false})
+		}
 	}
 
 	if user == nil { // this only happens on error above.

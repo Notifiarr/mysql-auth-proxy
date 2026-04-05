@@ -1,4 +1,4 @@
-//nolint:gochecknoglobals
+// Package exp provides a simple interface to expose metrics for the auth proxy.
 package exp
 
 import (
@@ -16,7 +16,7 @@ var mainMap = expvar.NewMap("auth").Init()
 // @Produce      json
 // @Success      200  {object} any "Auth Proxy Stats"
 // @Router       /stats [get]
-func init() { //nolint:gochecknoinits
+func init() {
 	start := &Time{Time: time.Now(), Places: ThreePlaces}
 	mainMap.Set("Uptime", expvar.Func(start.Since))
 }
