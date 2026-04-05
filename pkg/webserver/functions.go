@@ -3,6 +3,7 @@ package webserver
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"path"
 	"strings"
@@ -86,11 +87,16 @@ func (s *server) parseAPIKey(next http.Handler) http.Handler {
 // This does not validate the upstream IP. Do not expose this to the Internet.
 func fixForwardedFor(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		if x := req.Header.Get("X-Forwarded-For"); x == "" {
-			ip := strings.Trim(req.RemoteAddr[:strings.LastIndex(req.RemoteAddr, ":")], "[]")
-			req.Header.Set("X-Forwarded-For", ip)
+		forwarded := req.Header.Get("X-Forwarded-For")
+		if forwarded == "" {
+			host, _, err := net.SplitHostPort(req.RemoteAddr)
+			if err != nil {
+				req.Header.Set("X-Forwarded-For", strings.Trim(req.RemoteAddr, "[]"))
+			} else {
+				req.Header.Set("X-Forwarded-For", host)
+			}
 		} else {
-			req.Header.Set("X-Forwarded-For", strings.TrimSpace(strings.Split(x, ",")[0]))
+			req.Header.Set("X-Forwarded-For", strings.TrimSpace(strings.Split(forwarded, ",")[0]))
 		}
 
 		next.ServeHTTP(resp, req)

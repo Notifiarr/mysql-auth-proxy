@@ -46,11 +46,9 @@ func (s *server) handleUserInfo(resp http.ResponseWriter, req *http.Request) {
 // @Summary      Return all cached servers
 // @Tags         stats
 // @Produce      json
-// @Success      200  {object} map[string]cache.Item{data=userinfo.UserInfo} "List of cached servers. The map key is the server ID."
+// @Success      200  {object} map[string]cache.Item{data=userinfo.UserInfo} "Cached servers. Mp key is server ID."
 // @Failure      401  {object} string "invalid request"
 // @Router       /stats/servers [get]
-//
-//nolint:lll
 func (s *server) handeSrvList(resp http.ResponseWriter, _ *http.Request) {
 	err := json.NewEncoder(resp).Encode(s.servers.List())
 	if err != nil {
@@ -96,9 +94,8 @@ func (s *server) reloadConfig(resp http.ResponseWriter, _ *http.Request) {
 // @Tags         config
 // @Produce      json
 // @Success      200  {object} Config "Auth Proxy Config"
-//
-//	@Failure      401  {object} string "invalid request"
-//	@Router       /stats/config [get]
+// @Failure      401  {object} string "invalid request"
+// @Router       /stats/config [get]
 func (s *server) showConfig(resp http.ResponseWriter, _ *http.Request) {
 	err := json.NewEncoder(resp).Encode(s.Config)
 	if err != nil {

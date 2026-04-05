@@ -31,9 +31,16 @@ func (s *server) handleDelSrv(resp http.ResponseWriter, req *http.Request) {
 	start := time.Now()
 	user := userinfo.DefaultUser()
 
-	item := s.servers.Get(req.Header.Get("X-Server"))
+	serverID := req.Header.Get("X-Server")
 
-	defer s.servers.Delete(req.Header.Get("X-Server"))
+	item := s.servers.Get(serverID)
+	if item != nil && item.Data != nil {
+		if u, ok := item.Data.(*userinfo.UserInfo); ok {
+			user = u
+		}
+	}
+
+	defer s.servers.Delete(serverID)
 
 	// These headers are mostly for logs.
 	if user != nil && user.UserID != userinfo.DefaultUserID {
@@ -49,7 +56,7 @@ func (s *server) handleDelSrv(resp http.ResponseWriter, req *http.Request) {
 	var reply any = noExists{}
 	if item != nil {
 		reply = []*cache.Item{item}
-		resp.WriteHeader(http.StatusOK) //nolint:wsl
+		resp.WriteHeader(http.StatusOK)
 	} else {
 		resp.WriteHeader(http.StatusAlreadyReported)
 	}
