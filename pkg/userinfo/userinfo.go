@@ -22,20 +22,22 @@ const (
 
 // Config to get user data from the mysql database.
 type Config struct {
-	Host        string `toml:"host" xml:"host" json:"host"`
-	User        string `toml:"user" xml:"user" json:"user"`
-	Pass        string `toml:"pass" xml:"pass" json:"-"`
-	Name        string `toml:"name" xml:"name" json:"name"`
 	*log.Logger `json:"-"`
+
+	Host string `json:"host" toml:"host" xml:"host"`
+	User string `json:"user" toml:"user" xml:"user"`
+	Pass string `json:"-"    toml:"pass" xml:"pass"`
+	Name string `json:"name" toml:"name" xml:"name"`
 }
 
 // UI provides an interface to query a database for user info.
 type UI struct {
+	*log.Logger
+
 	config  *Config
 	dbase   *sql.DB
 	exp     *expvar.Map
 	metrics *exp.Metrics
-	*log.Logger
 }
 
 // UserInfo is the data returned for each user request.
@@ -75,7 +77,7 @@ func New(config *Config, metrics *exp.Metrics) (*UI, error) {
 // Open a mysql database connection.
 func (u *UI) Open() error {
 	if u.dbase != nil {
-		u.dbase.Close()
+		_ = u.dbase.Close()
 	}
 
 	host := "@tcp(" + u.config.Host + ")"
@@ -95,7 +97,7 @@ func (u *UI) Open() error {
 
 // Close the database connection.
 func (u *UI) Close() {
-	u.dbase.Close()
+	_ = u.dbase.Close()
 }
 
 // DefaultUser returns an empty user with default values.

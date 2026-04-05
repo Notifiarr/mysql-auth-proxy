@@ -39,23 +39,29 @@ func AddVar(name string, newVar expvar.Var) {
 	mainMap.Set(name, newVar)
 }
 
+// TimeLength is the length of the time duration to format.
 type TimeLength int
 
 // Time allows formatting time Durations.
 type Time struct {
 	time.Time
+
 	Places TimeLength
 }
 
 const (
-	DefaultPlaces TimeLength = 2
-	OnePlace      TimeLength = 1
-	TwoPlaces     TimeLength = DefaultPlaces
-	ThreePlaces   TimeLength = 3
+	// OnePlace is the number of places to format the time duration.
+	OnePlace TimeLength = 1
+	// TwoPlaces is the number of places to format the time duration.
+	TwoPlaces TimeLength = 2
+	// ThreePlaces is the number of places to format the time duration.
+	ThreePlaces TimeLength = 3
+	// DefaultPlaces is the default number of places to format the time duration.
+	DefaultPlaces = TwoPlaces
 )
 
 // Since returns a pretty-formatted time duration for expvar.
-func (e *Time) Since() interface{} {
+func (e *Time) Since() any {
 	num := e.Places
 	if num == 0 {
 		num = DefaultPlaces

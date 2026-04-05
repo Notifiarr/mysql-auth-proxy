@@ -1,3 +1,4 @@
+// Package main is the main package for the mysql-auth-proxy application.
 package main
 
 import (
@@ -15,9 +16,13 @@ func main() {
 		configFile = defaultConfigFile
 	}
 
-	if cnfg, err := webserver.LoadConfig(configFile); err != nil {
+	cnfg, err := webserver.LoadConfig(configFile)
+	if err != nil {
 		log.Fatalf("ERROR: %v", err)
-	} else if err := webserver.Start(cnfg); err != nil {
+	}
+
+	err = webserver.Start(cnfg)
+	if err != nil {
 		log.Fatalf("ERROR: %v", err)
 	}
 }

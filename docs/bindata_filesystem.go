@@ -1,16 +1,20 @@
 package docs
 
 import (
-	"os"
-
-	assetfs "github.com/elazarl/go-bindata-assetfs"
+	"embed"
+	"io/fs"
+	"net/http"
 )
 
-func AssetFS() *assetfs.AssetFS {
-	return &assetfs.AssetFS{
-		Prefix:    "docs",
-		Asset:     Asset,
-		AssetDir:  AssetDir,
-		AssetInfo: os.Stat,
+//go:embed docs
+var swaggerStatic embed.FS
+
+// AssetFS returns an http.FileSystem for swagger UI static assets.
+func AssetFS() http.FileSystem {
+	sub, err := fs.Sub(swaggerStatic, "docs")
+	if err != nil {
+		panic(err)
 	}
+
+	return http.FS(sub)
 }

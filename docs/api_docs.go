@@ -17,7 +17,7 @@ const docTemplateapi = `{
     "paths": {
         "/auth": {
             "get": {
-                "description": "Retreive the environment for an API Key or Server ID. This endpoint is designed for auth proxy requests from Nginx.\nOne of X-Server, X-API-Key or X-Original-URI (with an api key in it) must be provided.",
+                "description": "Retrieve the environment for an API Key or Server ID. This endpoint is designed for auth proxy requests from Nginx.\nOne of X-Server, X-API-Key or X-Original-URI (with an api key in it) must be provided.",
                 "tags": [
                     "auth"
                 ],
@@ -164,7 +164,7 @@ const docTemplateapi = `{
         },
         "/metrics": {
             "get": {
-                "description": "Retreive internal application metrics.",
+                "description": "Retrieve internal application metrics.",
                 "produces": [
                     "application/json"
                 ],
@@ -210,7 +210,7 @@ const docTemplateapi = `{
         },
         "/stats": {
             "get": {
-                "description": "Retreive internal application statistics.",
+                "description": "Retrieve internal application statistics.",
                 "produces": [
                     "application/json"
                 ],
@@ -230,7 +230,7 @@ const docTemplateapi = `{
         },
         "/stats/config": {
             "get": {
-                "description": "Retreive auth proxy configuration, minus passwords.",
+                "description": "Retrieve auth proxy configuration, minus passwords.",
                 "produces": [
                     "application/json"
                 ],
@@ -256,7 +256,7 @@ const docTemplateapi = `{
         },
         "/stats/key/{key}": {
             "get": {
-                "description": "Retreive a user's cached info.",
+                "description": "Retrieve a user's cached info.",
                 "produces": [
                     "application/json"
                 ],
@@ -303,7 +303,7 @@ const docTemplateapi = `{
         },
         "/stats/keys": {
             "get": {
-                "description": "Retreive full cached user list.",
+                "description": "Retrieve full cached user list.",
                 "produces": [
                     "application/json"
                 ],
@@ -344,7 +344,7 @@ const docTemplateapi = `{
         },
         "/stats/server/{key}": {
             "get": {
-                "description": "Retreive a cached server's info.",
+                "description": "Retrieve a cached server's info.",
                 "produces": [
                     "application/json"
                 ],
@@ -391,7 +391,7 @@ const docTemplateapi = `{
         },
         "/stats/servers": {
             "get": {
-                "description": "Retreive full cached server list.",
+                "description": "Retrieve full cached server list.",
                 "produces": [
                     "application/json"
                 ],

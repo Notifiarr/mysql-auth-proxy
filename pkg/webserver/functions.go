@@ -1,3 +1,4 @@
+// Package webserver contains the web server and related functions.
 package webserver
 
 import (
@@ -17,6 +18,7 @@ const (
 
 type responseWrapper struct {
 	http.ResponseWriter
+
 	statusCode int
 }
 
@@ -47,7 +49,7 @@ func (s *server) countRequests(next http.Handler) http.Handler {
 // fixRequestURI sets a special header that we can log without an API key. That is all.
 func (s *server) fixRequestURI(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		origURI := req.Header.Get("X-Original-URI")
+		origURI := req.Header.Get("X-Original-Uri")
 		if uri := strings.Split(origURI, "/"); len(uri) > keyPosition {
 			req.Header.Set("Referer", path.Dir(origURI))
 		} else if origURI != "" {
@@ -62,9 +64,9 @@ func (s *server) fixRequestURI(next http.Handler) http.Handler {
 // or returns a 401 if no key is found.
 func (s *server) parseAPIKey(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		key := req.Header.Get("X-API-Key")
+		key := req.Header.Get("X-Api-Key")
 		if len(key) != keyLength {
-			if uri := strings.Split(req.Header.Get("X-Original-URI"), "/"); len(uri) > keyPosition {
+			if uri := strings.Split(req.Header.Get("X-Original-Uri"), "/"); len(uri) > keyPosition {
 				key = strings.Split(uri[keyPosition], "?")[0]
 			}
 		}
