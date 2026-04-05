@@ -23,20 +23,22 @@ type keyReq struct {
 }
 
 func (s *server) handleServer(resp http.ResponseWriter, req *http.Request) {
+	key := req.Header.Get("X-Server")
 	s.handleGetAny(resp, req, &keyReq{
 		label: "servers",
-		key:   req.Header.Get("X-Server"),
-		cache: s.servers.Get(req.Header.Get("X-Server")),
+		key:   key,
+		cache: s.servers.Get(key),
 		get:   s.ui.GetServer,
 		save:  s.servers.Save,
 	})
 }
 
 func (s *server) handleGetKey(resp http.ResponseWriter, req *http.Request) {
+	key := mux.Vars(req)[apiKey]
 	s.handleGetAny(resp, req, &keyReq{
 		label: "users",
-		key:   mux.Vars(req)[apiKey],
-		cache: s.users.Get(mux.Vars(req)[apiKey]),
+		key:   key,
+		cache: s.users.Get(key),
 		get:   s.ui.GetInfo,
 		save:  s.users.Save,
 	})

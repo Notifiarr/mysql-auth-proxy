@@ -59,6 +59,8 @@ type server struct {
 	// noAuthMu protects NoAuthPaths on the embedded Config (RequiresAPIKey, reload, showConfig).
 	noAuthMu sync.RWMutex
 	metrics  *exp.Metrics
+	// apiKeyVarsPool backs mux.SetURLVars in parseAPIKey (avoids a map alloc per request).
+	apiKeyVarsPool sync.Pool
 }
 
 // ErrNoSQLConfig is returned if no mysql config is present.
@@ -123,6 +125,8 @@ func Start(config *Config) error {
 }
 
 func (s *server) start() error {
+	s.apiKeyVarsPool = sync.Pool{New: func() any { return make(map[string]string, 1) }}
+
 	s.users = cache.New(cache.Config{PruneInterval: pruneInterval, RequestAccuracy: time.Second})
 	defer s.users.Stop(false)
 
