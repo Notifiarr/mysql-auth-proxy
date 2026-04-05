@@ -3,12 +3,8 @@ package userinfo
 
 import (
 	"context"
-	"expvar"
 	"fmt"
 	"time"
-
-	"github.com/Notifiarr/mysql-auth-proxy/pkg/exp"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const getServerQuery = "SELECT `apikey`,`developmentEnv`,`environment`,`name`,`id`,`discordServer` " +
@@ -16,17 +12,13 @@ const getServerQuery = "SELECT `apikey`,`developmentEnv`,`environment`,`name`,`i
 
 // GetServer retrieves a Discord server's information from the database.
 func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) {
-	u.exp.Add("Server Queries", 1)
-	u.exp.Set("Last Server", expvar.Func((&exp.Time{Time: time.Now()}).Since))
+	start := time.Now()
 
-	timer := prometheus.NewTimer(u.metrics.QueryTime.WithLabelValues("servers"))
 	rows, err := u.dbase.QueryContext(ctx, getServerQuery, serverID)
-	timer.ObserveDuration()
+	u.metrics.QueryTime.WithLabelValues("servers").Observe(time.Since(start).Seconds())
 
 	if err != nil {
-		u.exp.Add("Server Errors", 1)
 		u.metrics.QueryErrors.WithLabelValues("servers").Inc()
-
 		return nil, fmt.Errorf("querying database: %w", err)
 	}
 
@@ -39,7 +31,6 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 
 		err := rows.Scan(&user.APIKey, &devAllowed, &user.Environment, &user.Username, &user.UserID, &discord)
 		if err != nil {
-			u.exp.Add("Server Errors", 1)
 			u.Printf("[ERROR] scanning mysql rows: %v", err)
 			u.metrics.QueryErrors.WithLabelValues("servers").Inc()
 
@@ -55,14 +46,11 @@ func (u *UI) GetServer(ctx context.Context, serverID string) (*UserInfo, error) 
 
 	err = rows.Err()
 	if err != nil {
-		u.exp.Add("Server Errors", 1)
 		u.metrics.QueryErrors.WithLabelValues("servers").Inc()
-
 		return nil, fmt.Errorf("iterating database rows: %w", err)
 	}
 
 	u.metrics.QueryMissing.WithLabelValues("servers").Inc()
-	u.exp.Add("Missing Servers", 1)
 
 	return DefaultUser(), nil
 }

@@ -3,7 +3,6 @@ package userinfo
 import (
 	"database/sql"
 	"errors"
-	"expvar"
 	"fmt"
 	"log"
 	"os"
@@ -42,7 +41,6 @@ type UI struct {
 
 	config  *Config
 	dbase   *sql.DB
-	exp     *expvar.Map
 	metrics *exp.Metrics
 }
 
@@ -69,7 +67,6 @@ func New(config *Config, metrics *exp.Metrics) (*UI, error) {
 	info := &UI{
 		metrics: metrics,
 		config:  config,
-		exp:     exp.GetMap("Outgoing MySQL Requests").Init(),
 		Logger:  config.Logger,
 	}
 

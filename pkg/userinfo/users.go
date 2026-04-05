@@ -2,12 +2,8 @@ package userinfo
 
 import (
 	"context"
-	"expvar"
 	"fmt"
 	"time"
-
-	"github.com/Notifiarr/mysql-auth-proxy/pkg/exp"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const getUserQuery = "SELECT `developmentEnv`,`environment`,`name`,`id` FROM `users` WHERE `apikey`= ? " +
@@ -15,17 +11,13 @@ const getUserQuery = "SELECT `developmentEnv`,`environment`,`name`,`id` FROM `us
 
 // GetInfo returns a user's info from a mysql database.
 func (u *UI) GetInfo(ctx context.Context, requestKey string) (*UserInfo, error) {
-	u.exp.Add("User Queries", 1)
-	u.exp.Set("Last User", expvar.Func((&exp.Time{Time: time.Now()}).Since))
+	start := time.Now()
 
-	timer := prometheus.NewTimer(u.metrics.QueryTime.WithLabelValues("users"))
 	rows, err := u.dbase.QueryContext(ctx, getUserQuery, requestKey, requestKey)
-	timer.ObserveDuration()
+	u.metrics.QueryTime.WithLabelValues("users").Observe(time.Since(start).Seconds())
 
 	if err != nil {
 		u.metrics.QueryErrors.WithLabelValues("users").Inc()
-		u.exp.Add("User Errors", 1)
-
 		return nil, fmt.Errorf("querying database: %w", err)
 	}
 
@@ -38,13 +30,10 @@ func (u *UI) GetInfo(ctx context.Context, requestKey string) (*UserInfo, error) 
 		err = rows.Err()
 		if err != nil {
 			u.metrics.QueryErrors.WithLabelValues("users").Inc()
-			u.exp.Add("User Errors", 1)
-
 			return nil, fmt.Errorf("iterating database rows: %w", err)
 		}
 
 		u.metrics.QueryMissing.WithLabelValues("users").Inc()
-		u.exp.Add("Missing Users", 1)
 
 		return user, ErrNoUser // must return default user on error.
 	}
@@ -54,15 +43,12 @@ func (u *UI) GetInfo(ctx context.Context, requestKey string) (*UserInfo, error) 
 	err = rows.Scan(&devAllowed, &user.Environment, &user.Username, &user.UserID)
 	if err != nil {
 		u.metrics.QueryErrors.WithLabelValues("users").Inc()
-		u.exp.Add("User Errors", 1)
-
 		return nil, fmt.Errorf("scanning database rows: %w", err)
 	}
 
 	err = rows.Err()
 	if err != nil { // we do not care at this point, scan on the first row worked fine...?
 		u.metrics.QueryErrors.WithLabelValues("users").Inc()
-		u.exp.Add("User Errors", 1)
 		u.Printf("[ERROR] iterating database rows (ignored): %v", err)
 	}
 

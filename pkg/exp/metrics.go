@@ -1,6 +1,9 @@
+// Package exp provides Prometheus metrics registration for the auth proxy.
 package exp
 
 import (
+	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -41,6 +44,14 @@ func (c *CacheCollector) Collect(metrics chan<- prometheus.Metric) {
 	}
 }
 
+// HTTP request event labels for authproxy_http_requests_total (see warmHTTPMetrics).
+const (
+	HTTPEventTotal      = "total"
+	HTTPEventDelete     = "delete"
+	HTTPEventXServer    = "x_server"
+	HTTPEventInvalidKey = "invalid_key"
+)
+
 // Metrics contains the exported prometheus metrics used by the application.
 type Metrics struct {
 	QueryErrors  *prometheus.CounterVec
@@ -48,6 +59,8 @@ type Metrics struct {
 	QueryTime    *prometheus.HistogramVec
 	ReqTime      *prometheus.HistogramVec
 	Uptime       prometheus.CounterFunc
+	HTTPRequests *prometheus.CounterVec
+	HTTPResponse *prometheus.CounterVec
 }
 
 // GetMetrics sets up metrics on startup.
@@ -63,7 +76,7 @@ func GetMetrics(collector *CacheCollector) *Metrics {
 	collector.gauge = prometheus.NewDesc("authproxy_cache_gauges", "All cache gauges", []string{"cache", "gauge"}, nil)
 	prometheus.MustRegister(collector)
 
-	return &Metrics{
+	metrics := &Metrics{
 		QueryErrors: promauto.NewCounterVec(prometheus.CounterOpts{
 			Name: "authproxy_db_query_errors_total",
 			Help: "The total number of DB query errors",
@@ -86,5 +99,47 @@ func GetMetrics(collector *CacheCollector) *Metrics {
 			Name: "authproxy_uptime_seconds_total",
 			Help: "Seconds the auth proxy has been running",
 		}, func() float64 { return time.Since(start).Seconds() }),
+		HTTPRequests: promauto.NewCounterVec(prometheus.CounterOpts{
+			Name: "authproxy_http_requests_total",
+			Help: "HTTP request counts by event type",
+		}, []string{"event"}),
+		HTTPResponse: promauto.NewCounterVec(prometheus.CounterOpts{
+			Name: "authproxy_http_responses_total",
+			Help: "HTTP responses by status code",
+		}, []string{"status_code"}),
+	}
+
+	warmHTTPMetrics(metrics)
+
+	return metrics
+}
+
+// warmHTTPMetrics registers label combinations up front to reduce allocations on the hot path.
+func warmHTTPMetrics(metrics *Metrics) {
+	for _, cache := range []string{"users", "servers"} {
+		metrics.QueryErrors.WithLabelValues(cache)
+		metrics.QueryMissing.WithLabelValues(cache)
+		metrics.QueryTime.WithLabelValues(cache)
+		metrics.ReqTime.WithLabelValues(cache)
+	}
+
+	for _, event := range []string{
+		HTTPEventTotal,
+		HTTPEventDelete,
+		HTTPEventXServer,
+		HTTPEventInvalidKey,
+	} {
+		metrics.HTTPRequests.WithLabelValues(event)
+	}
+
+	for _, code := range []int{
+		http.StatusOK,
+		http.StatusUnauthorized,
+		http.StatusNotFound,
+		http.StatusInternalServerError,
+		http.StatusBadRequest,
+		http.StatusMethodNotAllowed,
+	} {
+		metrics.HTTPResponse.WithLabelValues(strconv.Itoa(code))
 	}
 }
