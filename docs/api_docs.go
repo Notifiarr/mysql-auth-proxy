@@ -175,9 +175,7 @@ const docTemplateapi = `{
                 "responses": {
                     "200": {
                         "description": "Auth Proxy Prometheus metrics",
-                        "schema": {
-                            "type": "object"
-                        }
+                        "schema": {}
                     }
                 }
             }
@@ -203,26 +201,6 @@ const docTemplateapi = `{
                         "description": "error reading config",
                         "schema": {
                             "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/stats": {
-            "get": {
-                "description": "Retrieve internal application statistics.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "stats"
-                ],
-                "summary": "Return auth proxy stats",
-                "responses": {
-                    "200": {
-                        "description": "Auth Proxy Stats",
-                        "schema": {
-                            "type": "object"
                         }
                     }
                 }
@@ -401,7 +379,7 @@ const docTemplateapi = `{
                 "summary": "Return all cached servers",
                 "responses": {
                     "200": {
-                        "description": "List of cached servers. The map key is the server ID.",
+                        "description": "Cached servers. Mp key is server ID.",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -447,6 +425,30 @@ const docTemplateapi = `{
                 }
             }
         },
+        "time.Duration": {
+            "type": "integer",
+            "format": "int64",
+            "enum": [
+                -9223372036854775808,
+                9223372036854775807,
+                1,
+                1000,
+                1000000,
+                1000000000,
+                60000000000,
+                3600000000000
+            ],
+            "x-enum-varnames": [
+                "minDuration",
+                "maxDuration",
+                "Nanosecond",
+                "Microsecond",
+                "Millisecond",
+                "Second",
+                "Minute",
+                "Hour"
+            ]
+        },
         "userinfo.UserInfo": {
             "type": "object",
             "properties": {
@@ -467,6 +469,12 @@ const docTemplateapi = `{
         "webserver.Config": {
             "type": "object",
             "properties": {
+                "connMaxIdleTime": {
+                    "$ref": "#/definitions/time.Duration"
+                },
+                "connMaxLifetime": {
+                    "$ref": "#/definitions/time.Duration"
+                },
                 "errorFile": {
                     "type": "string"
                 },
@@ -478,6 +486,13 @@ const docTemplateapi = `{
                 },
                 "logFile": {
                     "type": "string"
+                },
+                "maxIdleConns": {
+                    "type": "integer"
+                },
+                "maxOpenConns": {
+                    "description": "Pool tuning (optional). Zero values use defaults suitable for high-throughput auth lookups.",
+                    "type": "integer"
                 },
                 "name": {
                     "type": "string"

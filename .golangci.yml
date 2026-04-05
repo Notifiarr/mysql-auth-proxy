@@ -11,7 +11,7 @@ linters:
     - godot
   exclusions:
     rules:
-      - path: docs/api_docs.go|pkg/exp/exp.go
+      - path: docs/api_docs.go
         linters:
           - gochecknoinits
           - gochecknoglobals

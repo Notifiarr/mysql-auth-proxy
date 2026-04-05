@@ -2,12 +2,13 @@
 package webserver
 
 import (
-	"fmt"
 	"net"
 	"net/http"
 	"path"
+	"strconv"
 	"strings"
 
+	"github.com/Notifiarr/mysql-auth-proxy/pkg/exp"
 	"github.com/gorilla/mux"
 )
 
@@ -30,20 +31,20 @@ func (r *responseWrapper) WriteHeader(statusCode int) {
 
 func (s *server) countRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		s.metrics.HTTPRequests.WithLabelValues(exp.HTTPEventTotal).Inc()
+
 		if req.Method == http.MethodDelete {
-			s.exp.Add("Deletes", 1)
+			s.metrics.HTTPRequests.WithLabelValues(exp.HTTPEventDelete).Inc()
 		}
 
 		if req.Header.Get("X-Server") != "" {
-			s.exp.Add("X-Server", 1)
+			s.metrics.HTTPRequests.WithLabelValues(exp.HTTPEventXServer).Inc()
 		}
-
-		s.exp.Add("Total", 1)
 
 		wrap := &responseWrapper{ResponseWriter: resp, statusCode: http.StatusOK}
 		next.ServeHTTP(wrap, req)
 
-		s.exp.Add(fmt.Sprintf("Response %d %s", wrap.statusCode, http.StatusText(wrap.statusCode)), 1)
+		s.metrics.HTTPResponse.WithLabelValues(strconv.Itoa(wrap.statusCode)).Inc()
 	})
 }
 
@@ -75,7 +76,7 @@ func (s *server) parseAPIKey(next http.Handler) http.Handler {
 		req = mux.SetURLVars(req, map[string]string{apiKey: key})
 
 		if len(key) != keyLength {
-			s.exp.Add("Invalid Key", 1)
+			s.metrics.HTTPRequests.WithLabelValues(exp.HTTPEventInvalidKey).Inc()
 			s.noKeyReply(resp, req) // bad key, bail out.
 		} else {
 			next.ServeHTTP(resp, req)

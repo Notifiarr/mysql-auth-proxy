@@ -3,7 +3,6 @@ package webserver
 import (
 	"bytes"
 	"errors"
-	"expvar"
 	"fmt"
 	"log"
 	"net/http"
@@ -54,7 +53,6 @@ type server struct {
 	users   *cache.Cache
 	servers *cache.Cache
 	ui      *userinfo.UI
-	exp     *expvar.Map
 	httpLog *log.Logger
 	server  *http.Server
 	errRot  *rotatorr.Logger
@@ -146,10 +144,6 @@ func (s *server) start() error {
 
 	s.ui = info
 	s.Router = mux.NewRouter()
-	s.exp = exp.GetMap("Incoming HTTP Requests").Init()
-
-	exp.AddVar("Users Cache", expvar.Func(s.users.ExpStats))
-	exp.AddVar("Servers Cache", expvar.Func(s.servers.ExpStats))
 
 	return s.startWebServer()
 }
@@ -169,7 +163,6 @@ func (s *server) startWebServer() error {
 	s.HandleFunc("/stats/servers", s.handeSrvList).Methods(http.MethodGet)
 	s.HandleFunc("/stats/key/{key}", s.handleUserInfo).Methods(http.MethodGet)
 	s.HandleFunc("/stats/server/{key}", s.handleSrvInfo).Methods(http.MethodGet)
-	s.Handle("/stats", expvar.Handler()).Methods(http.MethodGet)
 	// delete handlers
 	s.HandleFunc("/auth", s.handleDelKey).Methods(http.MethodDelete).Headers("X-API-Keys", "")
 	s.HandleFunc("/auth", s.handleDelSrv).Methods(http.MethodDelete).Headers("X-Server", "")

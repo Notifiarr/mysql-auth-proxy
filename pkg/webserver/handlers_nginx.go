@@ -9,7 +9,6 @@ import (
 
 	"github.com/Notifiarr/mysql-auth-proxy/pkg/userinfo"
 	"github.com/gorilla/mux"
-	"github.com/prometheus/client_golang/prometheus"
 	"golift.io/cache"
 )
 
@@ -65,8 +64,8 @@ func (s *server) handleGetKey(resp http.ResponseWriter, req *http.Request) {
 // @Router       /auth [get]
 func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, keyReq *keyReq) {
 	var (
-		start = prometheus.NewTimer(s.metrics.ReqTime.WithLabelValues(keyReq.label))
-		when  = time.Time{}
+		start = time.Now()
+		when  = start
 		user  *userinfo.UserInfo
 		err   error
 	)
@@ -91,12 +90,15 @@ func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, keyRe
 		s.Println("[ERROR] user missing from cache or lookup", key, length)
 	}
 
+	elapsed := time.Since(start)
+	s.metrics.ReqTime.WithLabelValues(keyReq.label).Observe(elapsed.Seconds())
+
+	resp.Header().Set("X-Request-Time", elapsed.Round(time.Millisecond).String())
 	resp.Header().Set("X-Api-Key", user.APIKey)
 	resp.Header().Set("X-Environment", user.Environment)
 	resp.Header().Set("X-Username", user.Username)
 	resp.Header().Set("X-Userid", user.UserID)
 	resp.Header().Set("Age", strconv.Itoa(int((time.Since(when).Seconds()))))
-	resp.Header().Set("X-Request-Time", start.ObserveDuration().Round(time.Millisecond).String())
 
 	// If the user is the default user, and there was no error, then return a 401.
 	if user.UserID == userinfo.DefaultUserID && (err == nil || errors.Is(err, userinfo.ErrNoUser)) {

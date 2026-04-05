@@ -5,7 +5,6 @@ go 1.26.1
 require (
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/gorilla/mux v1.8.1
-	github.com/hako/durafmt v0.0.0-20210608085754-5c1018a4e16b
 	github.com/lestrrat-go/apache-logformat/v2 v2.0.6
 	github.com/prometheus/client_golang v1.23.2
 	github.com/swaggo/swag v1.16.6
