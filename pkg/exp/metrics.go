@@ -156,7 +156,7 @@ func (m *Metrics) CountRequest(req *http.Request, statusCode string) {
 		m.HTTPRequests.WithLabelValues(HTTPEventDelete).Inc()
 	}
 
-	if _, ok := req.Header["X-Server"]; ok {
+	if len(req.Header["X-Server"]) > 0 {
 		m.HTTPRequests.WithLabelValues(HTTPEventXServer).Inc()
 	}
 
