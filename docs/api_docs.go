@@ -17,7 +17,7 @@ const docTemplateapi = `{
     "paths": {
         "/auth": {
             "get": {
-                "description": "Retrieve the environment for an API Key or Server ID. This endpoint is designed for auth proxy requests from Nginx.\nOne of X-Server, X-API-Key or X-Original-URI (with an api key in it) must be provided.",
+                "description": "Retrieve the environment for an API Key or Server ID. This endpoint is designed for auth proxy requests from Nginx.\nOne of X-Server, X-Api-Key or X-Original-URI (with an api key in it) must be provided.",
                 "tags": [
                     "auth"
                 ],
@@ -38,7 +38,7 @@ const docTemplateapi = `{
                     {
                         "type": "string",
                         "description": "User's API Key to route. May also be provided in X-Original-URI header.",
-                        "name": "X-API-Key",
+                        "name": "X-Api-Key",
                         "in": "header"
                     },
                     {
@@ -56,7 +56,7 @@ const docTemplateapi = `{
                                 "type": "string",
                                 "description": "How long this information has been in the cache."
                             },
-                            "X-API-Key": {
+                            "X-Api-Key": {
                                 "type": "string",
                                 "description": "API Key parsed from request."
                             },
@@ -80,7 +80,7 @@ const docTemplateapi = `{
                             "type": "string"
                         },
                         "headers": {
-                            "X-API-Key": {
+                            "X-Api-Key": {
                                 "type": "string",
                                 "description": "API Key parsed from request."
                             }
@@ -108,7 +108,7 @@ const docTemplateapi = `{
                     {
                         "type": "string",
                         "description": "Comma separated list of API keys to delete.",
-                        "name": "X-API-Keys",
+                        "name": "X-Api-Keys",
                         "in": "header",
                         "required": true
                     }

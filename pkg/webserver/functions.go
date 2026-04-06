@@ -2,20 +2,20 @@
 package webserver
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/Notifiarr/mysql-auth-proxy/pkg/exp"
-	"github.com/gorilla/mux"
 )
 
 const (
-	keyLength = 36       // exact key length for a valid key.
-	apiKey    = "apiKey" // used for map key internally.
-	// website uses this position for the api key, e.g. /api/v1/route/method/{apikey} <-- 5.
-	keyPosition = 5
+	keyLength   = 36 // exact key length for a valid key.
+	keyPosition = 5  // website uses this position for the api key, e.g. /api/v1/route/method/{apikey} <-- 5.
 )
+
+type parsedAPIKeyCtxKey struct{}
 
 // GetAPIKeyFromURIPath returns segment keyPosition of strings.Split(pathStr, "/") (without
 // allocating the split slice). If that segment contains "?", only the part before it is returned.
@@ -33,6 +33,12 @@ func GetAPIKeyFromURIPath(pathStr string) string {
 	}
 
 	return ""
+}
+
+// apiKeyFromRequest returns the parsed API key set by parseAPIKey (empty if unset).
+func apiKeyFromRequest(req *http.Request) string {
+	v, _ := req.Context().Value(parsedAPIKeyCtxKey{}).(string)
+	return v
 }
 
 type responseWrapper struct {
@@ -54,7 +60,7 @@ func (s *server) countRequests(next http.Handler) http.Handler {
 			s.metrics.HTTPRequests.WithLabelValues(exp.HTTPEventDelete).Inc()
 		}
 
-		if req.Header.Get("X-Server") != "" {
+		if getHeader(req.Header, "X-Server") != "" {
 			s.metrics.HTTPRequests.WithLabelValues(exp.HTTPEventXServer).Inc()
 		}
 
@@ -65,29 +71,16 @@ func (s *server) countRequests(next http.Handler) http.Handler {
 	})
 }
 
-// parseAPIKey sets a valid-lengh api key to a mux var.
+// parseAPIKey attaches the parsed API key to req's context for downstream handlers,
 // or returns a 401 if no key is found.
 func (s *server) parseAPIKey(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		key := req.Header.Get("X-Api-Key")
+		key := getHeader(req.Header, "X-Api-Key")
 		if len(key) != keyLength {
-			key = GetAPIKeyFromURIPath(req.Header.Get("X-Original-Uri"))
+			key = GetAPIKeyFromURIPath(getHeader(req.Header, "X-Original-Uri"))
 		}
 
-		pooled := s.apiKeyVarsPool.Get()
-
-		urlVars, ok := pooled.(map[string]string)
-		if !ok {
-			urlVars = make(map[string]string, 1)
-		}
-
-		urlVars[apiKey] = key
-		req = mux.SetURLVars(req, urlVars)
-
-		defer func() {
-			delete(urlVars, apiKey)
-			s.apiKeyVarsPool.Put(urlVars)
-		}()
+		req = req.WithContext(context.WithValue(req.Context(), parsedAPIKeyCtxKey{}, key))
 
 		if len(key) != keyLength {
 			s.metrics.HTTPRequests.WithLabelValues(exp.HTTPEventInvalidKey).Inc()
@@ -107,4 +100,15 @@ func maskAPIKey(key string) (string, string) {
 	}
 
 	return key[:4] + "..." + key[length-2:], strconv.Itoa(length)
+}
+
+// getHeader returns the first value for an http.Header field. key must already be in
+// canonical form (http.CanonicalHeaderKey). Unlike Header.Get it does not allocate
+// or re-canonicalize key on each call.
+func getHeader(headers http.Header, key string) string {
+	if v := headers[key]; len(v) > 0 {
+		return v[0]
+	}
+
+	return ""
 }

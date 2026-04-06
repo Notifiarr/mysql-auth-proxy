@@ -21,7 +21,7 @@ type noExists struct {
 // @Tags         auth
 // @Produce      json
 // @Param        X-Server   header string true "Discord Server ID to delete."
-// @Param        X-API-Keys header string true "Comma separated list of API keys to delete."
+// @Param        X-Api-Keys header string true "Comma separated list of API keys to delete."
 // @Success      200  {object} []cache.Item{data=userinfo.UserInfo} "List of cached info for API Keys or servers that were deleted."
 // @Success      208  {object} noExists "exists: false is returned when a missing server ID is provided."
 // @Failure      401  {object} string "invalid request"
@@ -29,7 +29,7 @@ type noExists struct {
 func (s *server) handleDelSrv(resp http.ResponseWriter, req *http.Request) {
 	user := userinfo.DefaultUser()
 
-	serverID := req.Header.Get("X-Server")
+	serverID := getHeader(req.Header, "X-Server")
 
 	item := s.servers.Get(serverID)
 	if item != nil && item.Data != nil {
@@ -65,7 +65,7 @@ func (s *server) handleDelSrv(resp http.ResponseWriter, req *http.Request) {
 }
 
 func (s *server) handleDelKey(resp http.ResponseWriter, req *http.Request) {
-	keys := strings.Split(req.Header.Get("X-Api-Keys"), ",")
+	keys := strings.Split(getHeader(req.Header, "X-Api-Keys"), ",")
 	infos := make([]*cache.Item, len(keys))
 	user := userinfo.DefaultUser()
 

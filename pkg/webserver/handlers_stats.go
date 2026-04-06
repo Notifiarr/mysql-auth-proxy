@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"slices"
-	"strings"
 
 	"github.com/Notifiarr/mysql-auth-proxy/docs"
-	"github.com/gorilla/mux"
 	"github.com/swaggo/swag"
 )
 
@@ -36,7 +34,7 @@ func (s *server) handeUserList(resp http.ResponseWriter, _ *http.Request) {
 // @Failure      401  {object} string "invalid request"
 // @Router       /stats/key/{key} [get]
 func (s *server) handleUserInfo(resp http.ResponseWriter, req *http.Request) {
-	err := json.NewEncoder(resp).Encode(s.users.Get(mux.Vars(req)["key"]))
+	err := json.NewEncoder(resp).Encode(s.users.Get(req.PathValue("key")))
 	if err != nil {
 		s.Printf("[ERROR] writing response: %v", err)
 	}
@@ -65,7 +63,7 @@ func (s *server) handeSrvList(resp http.ResponseWriter, _ *http.Request) {
 // @Failure      401  {object} string "invalid request"
 // @Router       /stats/server/{key} [get]
 func (s *server) handleSrvInfo(resp http.ResponseWriter, req *http.Request) {
-	err := json.NewEncoder(resp).Encode(s.servers.Get(mux.Vars(req)["key"]))
+	err := json.NewEncoder(resp).Encode(s.servers.Get(req.PathValue("key")))
 	if err != nil {
 		s.Printf("[ERROR] writing response: %v", err)
 	}
@@ -110,17 +108,11 @@ func (s *server) showConfig(resp http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *server) handlerSwaggerDoc(response http.ResponseWriter, request *http.Request) {
-	instance := strings.TrimSuffix(mux.Vars(request)["instance"], ".json")
-	if instance == "" {
-		instance = "api"
-	}
-
 	docs.SwaggerInfoapi.Version = "v0"
-
 	//	docs.SwaggerInfoapi.BasePath = c.Config.URLBase
 	docs.SwaggerInfoapi.Host = request.Host
 
-	doc, err := swag.ReadDoc(instance)
+	doc, err := swag.ReadDoc("api")
 	if err != nil {
 		http.Error(response, err.Error(), http.StatusInternalServerError)
 		return

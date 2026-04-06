@@ -50,17 +50,6 @@ func (c *captureWriter) statusCode() int {
 	return c.status
 }
 
-// Get returns the first value for a response header field. key must already be in
-// canonical form (http.CanonicalHeaderKey). Unlike Header.Get it does not allocate
-// or re-canonicalize key on each call.
-func (c *captureWriter) Get(key string) string {
-	if v := c.Header()[key]; len(v) > 0 {
-		return v[0]
-	}
-
-	return ""
-}
-
 //nolint:gochecknoglobals // one pool per process for hot-path access log strings.Builder reuse
 var alBuilder = sync.Pool{New: func() any { return &strings.Builder{} }}
 
@@ -93,10 +82,10 @@ func (c *captureWriter) writeAccessLogLinePrefix(builder *strings.Builder, req *
 	builder.WriteByte(' ')
 	// "%{X-Username}o"
 	builder.WriteByte('"')
-	builder.WriteString(c.Get("X-Username"))
+	builder.WriteString(getHeader(req.Header, "X-Username"))
 	builder.WriteString("\" ")
 	// %{X-UserID}o
-	builder.WriteString(c.Get("X-Userid"))
+	builder.WriteString(getHeader(req.Header, "X-Userid"))
 	builder.WriteByte(' ')
 	// %t — [02/Jan/2006:15:04:05 -0700]
 	builder.WriteByte('[')
@@ -134,9 +123,9 @@ func (c *captureWriter) writeAccessLogLineTail(builder *strings.Builder, req *ht
 	// %{ms}T — elapsed milliseconds (same as apache-logformat request duration).
 	builder.WriteString(strconv.FormatInt(time.Since(c.start).Milliseconds(), 10))
 	builder.WriteString("ms age:")
-	builder.WriteString(c.Get("Age"))
+	builder.WriteString(getHeader(req.Header, "Age"))
 	builder.WriteString(" env:")
-	builder.WriteString(c.Get("X-Environment"))
+	builder.WriteString(getHeader(req.Header, "X-Environment"))
 	builder.WriteString(" key:")
 
 	masked, keyLenStr := c.maskedAPIKeyFromResponse()
@@ -144,14 +133,14 @@ func (c *captureWriter) writeAccessLogLineTail(builder *strings.Builder, req *ht
 	builder.WriteByte('(')
 	builder.WriteString(keyLenStr)
 	builder.WriteString(") \"srv:")
-	builder.WriteString(req.Header.Get("X-Server"))
+	builder.WriteString(getHeader(req.Header, "X-Server"))
 	builder.WriteString("\"\n")
 }
 
 // maskedAPIKeyFromResponse returns maskAPIKey(w X-Api-Key) for the access log, or ("", "")
 // when the handler did not set that response header.
 func (c *captureWriter) maskedAPIKeyFromResponse() (string, string) {
-	key := c.Get("X-Api-Key")
+	key := getHeader(c.Header(), "X-Api-Key")
 	if key == "" {
 		return "", ""
 	}
@@ -164,7 +153,7 @@ func (c *captureWriter) maskedAPIKeyFromResponse() (string, string) {
 // If the path has fewer than keyPosition+1 segments, it returns the full path (still without query).
 // When X-Original-Uri is missing, empty, or only a query string, it returns "".
 func RefererPathForLog(header http.Header) string {
-	pathPart, _, _ := strings.Cut(header.Get("X-Original-Uri"), "?")
+	pathPart, _, _ := strings.Cut(getHeader(header, "X-Original-Uri"), "?")
 	if pathPart == "" {
 		return ""
 	}
@@ -189,7 +178,7 @@ func RefererPathForLog(header http.Header) string {
 
 // ClientIPForLog returns the client IP for access logs (same rules as the former fixForwardedFor middleware).
 func ClientIPForLog(req *http.Request) string {
-	forwarded := req.Header.Get("X-Forwarded-For")
+	forwarded := getHeader(req.Header, "X-Forwarded-For")
 	if forwarded == "" {
 		host, _, err := net.SplitHostPort(req.RemoteAddr)
 		if err != nil {

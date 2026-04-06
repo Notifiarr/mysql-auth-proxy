@@ -4,7 +4,6 @@ go 1.26.1
 
 require (
 	github.com/go-sql-driver/mysql v1.9.3
-	github.com/gorilla/mux v1.8.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/swaggo/swag v1.16.6
 	golift.io/cache v1.0.1-0.20260406025202-1176587c97ab
