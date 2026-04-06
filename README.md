@@ -2,14 +2,14 @@
 
 This auth proxy is used to direct traffic on Notifiarr.com using the Nginx auth proxy module.
 
-### Example Nginx Config
+## Example Nginx Config
 
 ```nginx
 log_format local '$host $remote_addr $auth_idnt $auth_user [$time_local] '
     '"$request" $status $body_bytes_sent '
     '"$http_referer" "$http_user_agent" '
     'req=$request_time con="$upstream_connect_time" hed="$upstream_header_time" res="$upstream_response_time"';
-    
+
 
 # Allow http username to override x-api-key header, but only if it's not blank.
 map $remote_user $remote_api_key {
@@ -75,7 +75,7 @@ server {
 }
 ```
 
-### Example Docker Compose
+## Example Docker Compose
 
 ```yaml
 ---

@@ -17,9 +17,24 @@ import (
 type keyReq struct {
 	label string
 	key   string
-	cache *cache.Item
+	store *cache.Cache
 	get   func(context.Context, string) (*userinfo.UserInfo, error)
 	save  func(string, any, cache.Options) bool
+}
+
+// cacheUserFromGetInto loads a cached *userinfo.UserInfo and its save time without allocating *cache.Item.
+func cacheUserFromGetInto(store *cache.Cache, key string) (*userinfo.UserInfo, time.Time, bool) {
+	var snap cache.Item
+	if !store.GetInto(key, &snap) || snap.Data == nil {
+		return nil, time.Time{}, false
+	}
+
+	user, ok := snap.Data.(*userinfo.UserInfo)
+	if !ok || user == nil {
+		return nil, time.Time{}, false
+	}
+
+	return user, snap.Time, true
 }
 
 func (s *server) handleServer(resp http.ResponseWriter, req *http.Request) {
@@ -27,7 +42,7 @@ func (s *server) handleServer(resp http.ResponseWriter, req *http.Request) {
 	s.handleGetAny(resp, req, keyReq{
 		label: "servers",
 		key:   key,
-		cache: s.servers.Get(key),
+		store: s.servers,
 		get:   s.ui.GetServer,
 		save:  s.servers.Save,
 	})
@@ -38,7 +53,7 @@ func (s *server) handleGetKey(resp http.ResponseWriter, req *http.Request) {
 	s.handleGetAny(resp, req, keyReq{
 		label: "users",
 		key:   key,
-		cache: s.users.Get(key),
+		store: s.users,
 		get:   s.ui.GetInfo,
 		save:  s.users.Save,
 	})
@@ -66,21 +81,10 @@ func (s *server) handleGetKey(resp http.ResponseWriter, req *http.Request) {
 // @Router       /auth [get]
 func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, keyReq keyReq) {
 	var (
-		start = time.Now()
-		hit   = false
-		user  *userinfo.UserInfo
-		when  time.Time
-		err   error
+		start           = time.Now()
+		err             error
+		user, when, hit = cacheUserFromGetInto(keyReq.store, keyReq.key)
 	)
-
-	if keyReq.cache != nil && keyReq.cache.Data != nil {
-		u, ok := keyReq.cache.Data.(*userinfo.UserInfo)
-		if ok && u != nil {
-			user = u
-			when = keyReq.cache.Time
-			hit = true
-		}
-	}
 
 	if !hit {
 		when = start
