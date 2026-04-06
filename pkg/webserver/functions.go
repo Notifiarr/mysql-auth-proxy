@@ -18,24 +18,21 @@ const (
 	keyPosition = 5
 )
 
-// SetRefererForOriginalURI reads X-Original-Uri from header, strips the query string, and sets
-// Referer to the path with the API key segment (keyPosition) removed for logging. Segments match
-// strings.Split(path, "/") the same way as GetAPIKeyFromURIPath. If the path has fewer than
-// keyPosition+1 segments, Referer is the full path (still without query). When X-Original-Uri is
-// missing, empty, or only a query string, Referer is not set.
-// The output from this ultimately winds up in the http/access log.
-func SetRefererForOriginalURI(header http.Header) {
+// RefererPathForLog returns the path part of X-Original-Uri (no query string) truncated before the
+// API key segment (keyPosition), using the same strings.Split(path, "/") rules as GetAPIKeyFromURIPath.
+// If the path has fewer than keyPosition+1 segments, it returns the full path (still without query).
+// When X-Original-Uri is missing, empty, or only a query string, it returns "".
+func RefererPathForLog(header http.Header) string {
 	pathPart, _, _ := strings.Cut(header.Get("X-Original-Uri"), "?")
 	if pathPart == "" {
-		return
+		return ""
 	}
 
 	var pos, segIdx int
 
 	for seg := range strings.SplitSeq(pathPart, "/") {
 		if segIdx == keyPosition {
-			header.Set("Referer", strings.TrimSuffix(pathPart[:pos], "/"))
-			return
+			return strings.TrimSuffix(pathPart[:pos], "/")
 		}
 
 		pos += len(seg)
@@ -46,7 +43,22 @@ func SetRefererForOriginalURI(header http.Header) {
 		segIdx++
 	}
 
-	header.Set("Referer", pathPart)
+	return pathPart
+}
+
+// ClientIPForLog returns the client IP for access logs (same rules as the former fixForwardedFor middleware).
+func ClientIPForLog(req *http.Request) string {
+	forwarded := req.Header.Get("X-Forwarded-For")
+	if forwarded == "" {
+		host, _, err := net.SplitHostPort(req.RemoteAddr)
+		if err != nil {
+			return strings.Trim(req.RemoteAddr, "[]")
+		}
+
+		return host
+	}
+
+	return strings.TrimSpace(strings.Split(forwarded, ",")[0])
 }
 
 // GetAPIKeyFromURIPath returns segment keyPosition of strings.Split(pathStr, "/") (without
@@ -97,14 +109,6 @@ func (s *server) countRequests(next http.Handler) http.Handler {
 	})
 }
 
-// fixRequestURI sets a special header that we can log without an API key. That is all.
-func (s *server) fixRequestURI(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		SetRefererForOriginalURI(req.Header)
-		next.ServeHTTP(resp, req)
-	})
-}
-
 // parseAPIKey sets a valid-lengh api key to a mux var.
 // or returns a 401 if no key is found.
 func (s *server) parseAPIKey(next http.Handler) http.Handler {
@@ -138,33 +142,13 @@ func (s *server) parseAPIKey(next http.Handler) http.Handler {
 	})
 }
 
-// fixForwardedFor sets the X-Forwarded-For header to the client IP.
-// This does not validate the upstream IP. Do not expose this to the Internet.
-func fixForwardedFor(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		forwarded := req.Header.Get("X-Forwarded-For")
-		if forwarded == "" {
-			host, _, err := net.SplitHostPort(req.RemoteAddr)
-			if err != nil {
-				req.Header.Set("X-Forwarded-For", strings.Trim(req.RemoteAddr, "[]"))
-			} else {
-				req.Header.Set("X-Forwarded-For", host)
-			}
-		} else {
-			req.Header.Set("X-Forwarded-For", strings.TrimSpace(strings.Split(forwarded, ",")[0]))
-		}
-
-		next.ServeHTTP(resp, req)
-	})
-}
-
-func maskAPIKey(key string) (string, int) {
+func maskAPIKey(key string) (string, string) {
 	const showKeyLength = 10
 
 	length := len(key)
 	if length < showKeyLength {
-		return key, length
+		return key, strconv.Itoa(length)
 	}
 
-	return key[:4] + "..." + key[length-2:], length
+	return key[:4] + "..." + key[length-2:], strconv.Itoa(length)
 }

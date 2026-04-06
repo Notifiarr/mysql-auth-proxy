@@ -1,6 +1,7 @@
 package webserver_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -9,41 +10,41 @@ import (
 
 const testAPIKey = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
-func TestSetRefererForOriginalURI(t *testing.T) {
+func TestRefererPathForLog(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name, origURI, wantReferer string
+		name, origURI, want string
 	}{
 		{
-			name:        "nginx style path strips key segment",
-			origURI:     "/api/v1/route/method/" + testAPIKey,
-			wantReferer: "/api/v1/route/method",
+			name:    "nginx style path strips key segment",
+			origURI: "/api/v1/route/method/" + testAPIKey,
+			want:    "/api/v1/route/method",
 		},
 		{
-			name:        "drops query",
-			origURI:     "/api/v1/route/method/key?foo=bar&baz=1",
-			wantReferer: "/api/v1/route/method",
+			name:    "drops query",
+			origURI: "/api/v1/route/method/key?foo=bar&baz=1",
+			want:    "/api/v1/route/method",
 		},
 		{
-			name:        "only query does not set referer",
-			origURI:     "?foo=bar",
-			wantReferer: "",
+			name:    "only query",
+			origURI: "?foo=bar",
+			want:    "",
 		},
 		{
-			name:        "empty does not set referer",
-			origURI:     "",
-			wantReferer: "",
+			name:    "empty",
+			origURI: "",
+			want:    "",
 		},
 		{
-			name:        "too few segments sets full path only",
-			origURI:     "/api/v1/foo",
-			wantReferer: "/api/v1/foo",
+			name:    "too few segments returns path only",
+			origURI: "/api/v1/foo",
+			want:    "/api/v1/foo",
 		},
 		{
-			name:        "double slash adds empty segment so keyPosition 5 is method not key",
-			origURI:     "/api/v1//route/method/key",
-			wantReferer: "/api/v1//route",
+			name:    "double slash adds empty segment so keyPosition 5 is method not key",
+			origURI: "/api/v1//route/method/key",
+			want:    "/api/v1//route",
 		},
 	}
 
@@ -53,12 +54,32 @@ func TestSetRefererForOriginalURI(t *testing.T) {
 
 			h := http.Header{}
 			h.Set("X-Original-Uri", testCase.origURI)
-			webserver.SetRefererForOriginalURI(h)
 
-			if got := h.Get("Referer"); got != testCase.wantReferer {
-				t.Fatalf("Referer = %q, want %q (X-Original-Uri=%q)", got, testCase.wantReferer, testCase.origURI)
+			if got := webserver.RefererPathForLog(h); got != testCase.want {
+				t.Fatalf("RefererPathForLog = %q, want %q (X-Original-Uri=%q)", got, testCase.want, testCase.origURI)
 			}
 		})
+	}
+}
+
+func TestClientIPForLog(t *testing.T) {
+	t.Parallel()
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req.RemoteAddr = "192.0.2.1:12345"
+
+	if got := webserver.ClientIPForLog(req); got != "192.0.2.1" {
+		t.Fatalf("ClientIPForLog = %q, want 192.0.2.1", got)
+	}
+
+	req.Header.Set("X-Forwarded-For", " 203.0.113.9 , 198.51.100.1 ")
+
+	if got := webserver.ClientIPForLog(req); got != "203.0.113.9" {
+		t.Fatalf("ClientIPForLog with XFF = %q, want 203.0.113.9", got)
 	}
 }
 

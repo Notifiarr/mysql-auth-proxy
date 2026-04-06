@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/Notifiarr/mysql-auth-proxy/pkg/userinfo"
 	"golift.io/cache"
@@ -28,7 +27,6 @@ type noExists struct {
 // @Failure      401  {object} string "invalid request"
 // @Router       /auth [delete]
 func (s *server) handleDelSrv(resp http.ResponseWriter, req *http.Request) {
-	start := time.Now()
 	user := userinfo.DefaultUser()
 
 	serverID := req.Header.Get("X-Server")
@@ -51,7 +49,6 @@ func (s *server) handleDelSrv(resp http.ResponseWriter, req *http.Request) {
 	resp.Header().Set("X-Environment", "deleted")
 	resp.Header().Set("Content-Type", "application/json")
 	resp.Header().Set("Age", "1")
-	resp.Header().Set("X-Request-Time", time.Since(start).Round(time.Millisecond).String())
 
 	var reply any = noExists{}
 	if item != nil {
@@ -68,7 +65,6 @@ func (s *server) handleDelSrv(resp http.ResponseWriter, req *http.Request) {
 }
 
 func (s *server) handleDelKey(resp http.ResponseWriter, req *http.Request) {
-	start := time.Now()
 	keys := strings.Split(req.Header.Get("X-Api-Keys"), ",")
 	infos := make([]*cache.Item, len(keys))
 	user := userinfo.DefaultUser()
@@ -91,7 +87,6 @@ func (s *server) handleDelKey(resp http.ResponseWriter, req *http.Request) {
 	resp.Header().Set("X-Environment", "deleted")
 	resp.Header().Set("Content-Type", "application/json")
 	resp.Header().Set("Age", strconv.Itoa(len(infos)))
-	resp.Header().Set("X-Request-Time", time.Since(start).Round(time.Millisecond).String())
 	resp.WriteHeader(http.StatusOK)
 
 	err := json.NewEncoder(resp).Encode(infos)
