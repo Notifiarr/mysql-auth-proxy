@@ -2,7 +2,6 @@
 package webserver
 
 import (
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,49 +16,6 @@ const (
 	// website uses this position for the api key, e.g. /api/v1/route/method/{apikey} <-- 5.
 	keyPosition = 5
 )
-
-// RefererPathForLog returns the path part of X-Original-Uri (no query string) truncated before the
-// API key segment (keyPosition), using the same strings.Split(path, "/") rules as GetAPIKeyFromURIPath.
-// If the path has fewer than keyPosition+1 segments, it returns the full path (still without query).
-// When X-Original-Uri is missing, empty, or only a query string, it returns "".
-func RefererPathForLog(header http.Header) string {
-	pathPart, _, _ := strings.Cut(header.Get("X-Original-Uri"), "?")
-	if pathPart == "" {
-		return ""
-	}
-
-	var pos, segIdx int
-
-	for seg := range strings.SplitSeq(pathPart, "/") {
-		if segIdx == keyPosition {
-			return strings.TrimSuffix(pathPart[:pos], "/")
-		}
-
-		pos += len(seg)
-		if pos < len(pathPart) && pathPart[pos] == '/' {
-			pos++
-		}
-
-		segIdx++
-	}
-
-	return pathPart
-}
-
-// ClientIPForLog returns the client IP for access logs (same rules as the former fixForwardedFor middleware).
-func ClientIPForLog(req *http.Request) string {
-	forwarded := req.Header.Get("X-Forwarded-For")
-	if forwarded == "" {
-		host, _, err := net.SplitHostPort(req.RemoteAddr)
-		if err != nil {
-			return strings.Trim(req.RemoteAddr, "[]")
-		}
-
-		return host
-	}
-
-	return strings.TrimSpace(strings.Split(forwarded, ",")[0])
-}
 
 // GetAPIKeyFromURIPath returns segment keyPosition of strings.Split(pathStr, "/") (without
 // allocating the split slice). If that segment contains "?", only the part before it is returned.

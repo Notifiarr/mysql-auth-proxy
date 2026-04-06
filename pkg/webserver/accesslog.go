@@ -2,6 +2,7 @@ package webserver
 
 import (
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,8 +14,8 @@ import (
 
 const accessLogInitialGrow = 512
 
-// responseWriter records status and body size for access logging.
-type responseWriter struct {
+// captureWriter records status and body size for access logging.
+type captureWriter struct {
 	http.ResponseWriter
 
 	start  time.Time
@@ -22,38 +23,38 @@ type responseWriter struct {
 	size   int64
 }
 
-func (w *responseWriter) WriteHeader(code int) {
-	if w.status == 0 {
-		w.status = code
+func (c *captureWriter) WriteHeader(code int) {
+	if c.status == 0 {
+		c.status = code
 	}
 
-	w.ResponseWriter.WriteHeader(code)
+	c.ResponseWriter.WriteHeader(code)
 }
 
-func (w *responseWriter) Write(p []byte) (int, error) {
-	if w.status == 0 {
-		w.status = http.StatusOK
+func (c *captureWriter) Write(p []byte) (int, error) {
+	if c.status == 0 {
+		c.status = http.StatusOK
 	}
 
-	n, err := w.ResponseWriter.Write(p)
-	w.size += int64(n)
+	n, err := c.ResponseWriter.Write(p)
+	c.size += int64(n)
 
 	return n, err //nolint:wrapcheck // delegate to underlying ResponseWriter
 }
 
-func (w *responseWriter) statusCode() int {
-	if w.status == 0 {
+func (c *captureWriter) statusCode() int {
+	if c.status == 0 {
 		return http.StatusOK
 	}
 
-	return w.status
+	return c.status
 }
 
 // Get returns the first value for a response header field. key must already be in
 // canonical form (http.CanonicalHeaderKey). Unlike Header.Get it does not allocate
 // or re-canonicalize key on each call.
-func (w *responseWriter) Get(key string) string {
-	if v := w.Header()[key]; len(v) > 0 {
+func (c *captureWriter) Get(key string) string {
+	if v := c.Header()[key]; len(v) > 0 {
 		return v[0]
 	}
 
@@ -65,28 +66,25 @@ var alBuilder = sync.Pool{New: func() any { return &strings.Builder{} }}
 
 // accessLogWrap writes one Apache-style line per request to dst (same field order as the former alFmt).
 func accessLogWrap(next http.Handler, dst io.Writer) http.Handler {
-	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		writer := &responseWriter{ResponseWriter: resp, start: time.Now()}
-		next.ServeHTTP(writer, req)
-		writer.writeAccessLogLine(req, dst)
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		capture := &captureWriter{ResponseWriter: w, start: time.Now()}
+		next.ServeHTTP(capture, req)
+		capture.writeAccessLogLine(req, dst)
 	})
 }
 
-func (w *responseWriter) writeAccessLogLine(req *http.Request, dst io.Writer) {
+func (c *captureWriter) writeAccessLogLine(req *http.Request, dst io.Writer) {
 	//nolint:forcetypeassert
 	builder := alBuilder.Get().(*strings.Builder) // Get a string buffer:
 	builder.Reset()                               //  - reset it.
 	builder.Grow(accessLogInitialGrow)            //  - grow it.
-	w.writeAccessLogLinePrefix(builder, req)      //  - fill prefix.
-	w.writeAccessLogLineTail(builder, req)        //  - fill suffix.
+	c.writeAccessLogLinePrefix(builder, req)      //  - fill prefix.
+	c.writeAccessLogLineTail(builder, req)        //  - fill suffix.
 	_, _ = io.WriteString(dst, builder.String())  //  - write it.
 	alBuilder.Put(builder)                        //  - put it back.
 }
 
-func (w *responseWriter) writeAccessLogLinePrefix(
-	builder *strings.Builder,
-	req *http.Request,
-) {
+func (c *captureWriter) writeAccessLogLinePrefix(builder *strings.Builder, req *http.Request) {
 	// %V
 	builder.WriteString(req.Host)
 	builder.WriteByte(' ')
@@ -95,14 +93,14 @@ func (w *responseWriter) writeAccessLogLinePrefix(
 	builder.WriteByte(' ')
 	// "%{X-Username}o"
 	builder.WriteByte('"')
-	builder.WriteString(w.Get("X-Username"))
+	builder.WriteString(c.Get("X-Username"))
 	builder.WriteString("\" ")
 	// %{X-UserID}o
-	builder.WriteString(w.Get("X-Userid"))
+	builder.WriteString(c.Get("X-Userid"))
 	builder.WriteByte(' ')
 	// %t — [02/Jan/2006:15:04:05 -0700]
 	builder.WriteByte('[')
-	builder.WriteString(w.start.Format("02/Jan/2006:15:04:05 -0700"))
+	builder.WriteString(c.start.Format("02/Jan/2006:15:04:05 -0700"))
 	builder.WriteString("] ")
 	// "%r"
 	builder.WriteByte('"')
@@ -117,10 +115,10 @@ func (w *responseWriter) writeAccessLogLinePrefix(
 
 	builder.WriteString(" HTTP/1.1\" ")
 	// %>s
-	builder.WriteString(strconv.Itoa(w.statusCode()))
+	builder.WriteString(strconv.Itoa(c.statusCode()))
 	builder.WriteByte(' ')
 	// %b — response body size (0 when none).
-	builder.WriteString(strconv.FormatInt(w.size, 10))
+	builder.WriteString(strconv.FormatInt(c.size, 10))
 
 	builder.WriteByte(' ')
 	// "%{Referer}i" "%{User-agent}i" query:...
@@ -131,21 +129,17 @@ func (w *responseWriter) writeAccessLogLinePrefix(
 	builder.WriteByte('"')
 }
 
-func (w *responseWriter) writeAccessLogLineTail(
-	builder *strings.Builder,
-	req *http.Request,
-) {
+func (c *captureWriter) writeAccessLogLineTail(builder *strings.Builder, req *http.Request) {
 	builder.WriteString(" req:")
 	// %{ms}T — elapsed milliseconds (same as apache-logformat request duration).
-	builder.WriteString(strconv.FormatInt(time.Since(w.start).Milliseconds(), 10))
+	builder.WriteString(strconv.FormatInt(time.Since(c.start).Milliseconds(), 10))
 	builder.WriteString("ms age:")
-	builder.WriteString(w.Get("Age"))
+	builder.WriteString(c.Get("Age"))
 	builder.WriteString(" env:")
-	builder.WriteString(w.Get("X-Environment"))
+	builder.WriteString(c.Get("X-Environment"))
 	builder.WriteString(" key:")
 
-	masked, keyLenStr := w.maskedAPIKeyFromResponse()
-
+	masked, keyLenStr := c.maskedAPIKeyFromResponse()
 	builder.WriteString(masked)
 	builder.WriteByte('(')
 	builder.WriteString(keyLenStr)
@@ -156,11 +150,54 @@ func (w *responseWriter) writeAccessLogLineTail(
 
 // maskedAPIKeyFromResponse returns maskAPIKey(w X-Api-Key) for the access log, or ("", "")
 // when the handler did not set that response header.
-func (w *responseWriter) maskedAPIKeyFromResponse() (string, string) {
-	key := w.Get("X-Api-Key")
+func (c *captureWriter) maskedAPIKeyFromResponse() (string, string) {
+	key := c.Get("X-Api-Key")
 	if key == "" {
 		return "", ""
 	}
 
 	return maskAPIKey(key)
+}
+
+// RefererPathForLog returns the path part of X-Original-Uri (no query string) truncated before the
+// API key segment (keyPosition), using the same strings.Split(path, "/") rules as GetAPIKeyFromURIPath.
+// If the path has fewer than keyPosition+1 segments, it returns the full path (still without query).
+// When X-Original-Uri is missing, empty, or only a query string, it returns "".
+func RefererPathForLog(header http.Header) string {
+	pathPart, _, _ := strings.Cut(header.Get("X-Original-Uri"), "?")
+	if pathPart == "" {
+		return ""
+	}
+
+	var pos, segIdx int
+
+	for seg := range strings.SplitSeq(pathPart, "/") {
+		if segIdx == keyPosition {
+			return strings.TrimSuffix(pathPart[:pos], "/")
+		}
+
+		pos += len(seg)
+		if pos < len(pathPart) && pathPart[pos] == '/' {
+			pos++
+		}
+
+		segIdx++
+	}
+
+	return pathPart
+}
+
+// ClientIPForLog returns the client IP for access logs (same rules as the former fixForwardedFor middleware).
+func ClientIPForLog(req *http.Request) string {
+	forwarded := req.Header.Get("X-Forwarded-For")
+	if forwarded == "" {
+		host, _, err := net.SplitHostPort(req.RemoteAddr)
+		if err != nil {
+			return strings.Trim(req.RemoteAddr, "[]")
+		}
+
+		return host
+	}
+
+	return strings.TrimSpace(strings.Split(forwarded, ",")[0])
 }
