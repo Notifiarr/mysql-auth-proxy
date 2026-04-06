@@ -42,7 +42,9 @@ type Config struct {
 	LogFile     string   `json:"logFile"     toml:"log_file"      xml:"log_file"`
 	ErrorFile   string   `json:"errorFile"   toml:"error_file"    xml:"error_file"`
 	NoAuthPaths []string `json:"noAuthPaths" toml:"no_auth_paths" xml:"no_auth_path"`
-	filePath    string   // path to loaded config file.
+	// CacheShards is golift.io/cache partition count for users and servers; 0 means library default (single shard).
+	CacheShards int    `json:"cacheShards,omitempty" toml:"cache_shards" xml:"cache_shards"`
+	filePath    string // path to loaded config file.
 }
 
 // server holds the running data.
@@ -120,6 +122,7 @@ func Start(config *Config) error {
 		config.Host, config.LogFile, config.ErrorFile, config.User, config.Name, config.Password != "")
 	server.Printf("No-Key-Required Paths (%d): %s",
 		len(config.NoAuthPaths), strings.Join(config.NoAuthPaths, ", "))
+	server.Printf("Cache shards: %d", config.CacheShards)
 
 	return server.start()
 }
@@ -127,10 +130,17 @@ func Start(config *Config) error {
 func (s *server) start() error {
 	s.apiKeyVarsPool = sync.Pool{New: func() any { return make(map[string]string, 1) }}
 
-	s.users = cache.New(cache.Config{PruneInterval: pruneInterval, RequestAccuracy: time.Second})
+	s.users = cache.New(cache.Config{
+		PruneInterval:   pruneInterval,
+		RequestAccuracy: time.Second,
+		Shards:          s.CacheShards,
+	})
 	defer s.users.Stop(false)
 
-	s.servers = cache.New(cache.Config{RequestAccuracy: time.Second})
+	s.servers = cache.New(cache.Config{
+		RequestAccuracy: time.Second,
+		Shards:          s.CacheShards,
+	})
 	defer s.servers.Stop(false)
 
 	s.metrics = exp.GetMetrics(&exp.CacheCollector{Stats: exp.CacheList{
