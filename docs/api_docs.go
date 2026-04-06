@@ -64,10 +64,6 @@ const docTemplateapi = `{
                                 "type": "string",
                                 "description": "Environment: live, dev, etc."
                             },
-                            "X-Request-Time": {
-                                "type": "string",
-                                "description": "How long the request elapsed."
-                            },
                             "X-UserID": {
                                 "type": "string",
                                 "description": "MySQL ID for the user whose API key was provided."
@@ -87,14 +83,6 @@ const docTemplateapi = `{
                             "X-API-Key": {
                                 "type": "string",
                                 "description": "API Key parsed from request."
-                            },
-                            "X-Key": {
-                                "type": "string",
-                                "description": "Masked API Key parsed from request."
-                            },
-                            "X-Length": {
-                                "type": "int",
-                                "description": "The length of the API key."
                             }
                         }
                     }
@@ -418,9 +406,11 @@ const docTemplateapi = `{
                 },
                 "data": {},
                 "hits": {
+                    "description": "Copied from 'hits' on read.",
                     "type": "integer"
                 },
                 "lastAccess": {
+                    "description": "Copied from 'last' on read.",
                     "type": "string"
                 }
             }
@@ -469,6 +459,10 @@ const docTemplateapi = `{
         "webserver.Config": {
             "type": "object",
             "properties": {
+                "cacheShards": {
+                    "description": "CacheShards is golift.io/cache partition count for users and servers; 0 means library default (single shard).",
+                    "type": "integer"
+                },
                 "connMaxIdleTime": {
                     "$ref": "#/definitions/time.Duration"
                 },

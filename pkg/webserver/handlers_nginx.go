@@ -73,11 +73,8 @@ func (s *server) handleGetKey(resp http.ResponseWriter, req *http.Request) {
 // @Header       200 {string} X-Username     "Username for the user whose API key was provided."
 // @Header       200 {string} X-UserID       "MySQL ID for the user whose API key was provided."
 // @Header       200 {string} Age            "How long this information has been in the cache."
-// @Header       200 {string} X-Request-Time "How long the request elapsed."
 // @Failure      401 {object} string         "invalid request"
-// @Header       401 {string} X-Key          "Masked API Key parsed from request."
 // @Header       401 {string} X-API-Key      "API Key parsed from request."
-// @Header       401 {int}    X-Length       "The length of the API key."
 // @Router       /auth [get]
 func (s *server) handleGetAny(resp http.ResponseWriter, req *http.Request, keyReq keyReq) {
 	var (
@@ -119,7 +116,6 @@ func (s *server) writeAuthResult(
 ) {
 	finished := time.Now()
 	s.metrics.ReqTime.WithLabelValues(label).Observe(finished.Sub(start).Seconds())
-	resp.Header().Set("X-Request-Time", finished.Sub(start).Round(time.Millisecond).String())
 	resp.Header().Set("X-Api-Key", user.APIKey)
 	resp.Header().Set("X-Environment", user.Environment)
 	resp.Header().Set("X-Username", user.Username)
@@ -136,10 +132,7 @@ func (s *server) writeAuthResult(
 
 // noKeyReply returns a 401.
 func (s *server) noKeyReply(resp http.ResponseWriter, req *http.Request) {
-	key, length := maskAPIKey(mux.Vars(req)[apiKey])
-	resp.Header().Set("X-Key", key)
 	resp.Header().Set("X-Api-Key", mux.Vars(req)[apiKey])
-	resp.Header().Set("X-Length", strconv.Itoa(length))
 
 	if s.RequiresAPIKey(req.Header.Get("X-Original-Uri")) {
 		resp.WriteHeader(http.StatusUnauthorized)

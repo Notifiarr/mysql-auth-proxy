@@ -15,7 +15,6 @@ import (
 	"github.com/Notifiarr/mysql-auth-proxy/pkg/exp"
 	"github.com/Notifiarr/mysql-auth-proxy/pkg/userinfo"
 	"github.com/gorilla/mux"
-	apachelog "github.com/lestrrat-go/apache-logformat/v2"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golift.io/cache"
 	"golift.io/cnfg"
@@ -27,10 +26,6 @@ import (
 const (
 	pruneInterval = 3 * time.Minute
 	timeout       = 15 * time.Second
-	// Apache Log format.
-	alFmt = `%V %{X-Forwarded-For}i "%{X-Username}o" %{X-UserID}o %t "%r" %>s %b "%{Referer}i" "%{User-agent}i" ` +
-		`query:%{X-Request-Time}o req:%{ms}Tms age:%{Age}o env:%{X-Environment}o key:%{X-Key}o(%{X-Length}o) ` +
-		`"srv:%{X-Server}i"`
 )
 
 // Config is the input data for the server.
@@ -163,9 +158,6 @@ func (s *server) start() error {
 }
 
 func (s *server) startWebServer() error {
-	// functions
-	s.Use(fixForwardedFor)
-	s.Use(s.fixRequestURI)
 	s.Use(s.countRequests)
 	// api docs
 	s.PathPrefix("/docs/").Handler(http.StripPrefix("/docs/", http.FileServer(docs.AssetFS())))
@@ -189,15 +181,9 @@ func (s *server) startWebServer() error {
 	// default: go away
 	s.HandleFunc("/", s.noKeyReply)
 
-	// Create pretty Apache-style logs.
-	apache, err := apachelog.New(alFmt)
-	if err != nil {
-		return fmt.Errorf("http log failed: %w", err)
-	}
-
 	s.server = &http.Server{
 		Addr:              s.ListenAddr,
-		Handler:           apache.Wrap(s.Router, s.httpLog.Writer()),
+		Handler:           accessLogWrap(s.Router, s.httpLog.Writer()),
 		ReadTimeout:       timeout,
 		ReadHeaderTimeout: timeout,
 		WriteTimeout:      timeout,
@@ -205,7 +191,7 @@ func (s *server) startWebServer() error {
 		ErrorLog:          s.Logger,
 	}
 
-	err = s.server.ListenAndServe()
+	err := s.server.ListenAndServe()
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("cannot start web server: %w", err)
 	}
