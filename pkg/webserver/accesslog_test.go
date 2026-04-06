@@ -51,7 +51,7 @@ func TestRefererPathForLog(t *testing.T) {
 			t.Parallel()
 
 			h := http.Header{}
-			h.Set("X-Original-Uri", testCase.origURI)
+			h.Set(webserver.HeaderXOriginalURI, testCase.origURI)
 
 			if got := webserver.RefererPathForLog(h); got != testCase.want {
 				t.Fatalf("RefererPathForLog = %q, want %q (X-Original-Uri=%q)", got, testCase.want, testCase.origURI)
@@ -74,7 +74,7 @@ func TestClientIPForLog(t *testing.T) {
 		t.Fatalf("ClientIPForLog = %q, want 192.0.2.1", got)
 	}
 
-	req.Header.Set("X-Forwarded-For", " 203.0.113.9 , 198.51.100.1 ")
+	req.Header.Set(webserver.HeaderXForwardedFor, " 203.0.113.9 , 198.51.100.1 ")
 
 	if got := webserver.ClientIPForLog(req); got != "203.0.113.9" {
 		t.Fatalf("ClientIPForLog with XFF = %q, want 203.0.113.9", got)

@@ -115,11 +115,11 @@ func (s *server) writeAuthResult(
 ) {
 	finished := time.Now()
 	s.metrics.ReqTime.WithLabelValues(label).Observe(finished.Sub(start).Seconds())
-	resp.Header().Set("X-Api-Key", user.APIKey)
-	resp.Header().Set("X-Environment", user.Environment)
-	resp.Header().Set("X-Username", user.Username)
-	resp.Header().Set("X-Userid", user.UserID)
-	resp.Header().Set("Age", strconv.Itoa(int(finished.Sub(when).Seconds())))
+	resp.Header().Set(HeaderXAPIKey, user.APIKey)
+	resp.Header().Set(HeaderEnvironment, user.Environment)
+	resp.Header().Set(HeaderXUsername, user.Username)
+	resp.Header().Set(HeaderXUserid, user.UserID)
+	resp.Header().Set(HeaderAge, strconv.Itoa(int(finished.Sub(when).Seconds())))
 	// If the user is the default user, and there was no error, then return a 401.
 	if user.UserID == userinfo.DefaultUserID && (err == nil || errors.Is(err, userinfo.ErrNoUser)) {
 		s.noKeyReply(resp, req)
@@ -131,9 +131,9 @@ func (s *server) writeAuthResult(
 
 // noKeyReply returns a 401.
 func (s *server) noKeyReply(resp http.ResponseWriter, req *http.Request) {
-	resp.Header().Set("X-Api-Key", apiKeyFromRequest(req))
+	resp.Header().Set(HeaderXAPIKey, apiKeyFromRequest(req))
 
-	if s.RequiresAPIKey(getHeader(req.Header, "X-Original-Uri")) {
+	if s.RequiresAPIKey(getHeader(req.Header, HeaderXOriginalURI)) {
 		resp.WriteHeader(http.StatusUnauthorized)
 	} else {
 		resp.WriteHeader(http.StatusOK)
@@ -144,19 +144,19 @@ func (s *server) noKeyReply(resp http.ResponseWriter, req *http.Request) {
 func (s *server) handleAuth(resp http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodDelete:
-		if getHeader(req.Header, "X-Api-Keys") != "" {
+		if getHeader(req.Header, HeaderXAPIKeys) != "" {
 			s.handleDelKey(resp, req)
 			return
 		}
 
-		if getHeader(req.Header, "X-Server") != "" {
+		if getHeader(req.Header, HeaderXServer) != "" {
 			s.handleDelSrv(resp, req)
 			return
 		}
 
 		http.NotFound(resp, req)
 	case http.MethodGet, http.MethodHead:
-		if getHeader(req.Header, "X-Server") != "" && getHeader(req.Header, "X-Api-Key") == s.Password {
+		if getHeader(req.Header, HeaderXServer) != "" && getHeader(req.Header, HeaderXAPIKey) == s.Password {
 			s.handleServer(resp, req)
 			return
 		}

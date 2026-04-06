@@ -41,43 +41,13 @@ func apiKeyFromRequest(req *http.Request) string {
 	return v
 }
 
-type responseWrapper struct {
-	http.ResponseWriter
-
-	statusCode int
-}
-
-func (r *responseWrapper) WriteHeader(statusCode int) {
-	r.statusCode = statusCode
-	r.ResponseWriter.WriteHeader(statusCode)
-}
-
-func (s *server) countRequests(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		s.metrics.HTTPRequests.WithLabelValues(exp.HTTPEventTotal).Inc()
-
-		if req.Method == http.MethodDelete {
-			s.metrics.HTTPRequests.WithLabelValues(exp.HTTPEventDelete).Inc()
-		}
-
-		if getHeader(req.Header, "X-Server") != "" {
-			s.metrics.HTTPRequests.WithLabelValues(exp.HTTPEventXServer).Inc()
-		}
-
-		wrap := &responseWrapper{ResponseWriter: resp, statusCode: http.StatusOK}
-		next.ServeHTTP(wrap, req)
-
-		s.metrics.HTTPResponse.WithLabelValues(strconv.Itoa(wrap.statusCode)).Inc()
-	})
-}
-
 // parseAPIKey attaches the parsed API key to req's context for downstream handlers,
 // or returns a 401 if no key is found.
 func (s *server) parseAPIKey(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		key := getHeader(req.Header, "X-Api-Key")
+		key := getHeader(req.Header, HeaderXAPIKey)
 		if len(key) != keyLength {
-			key = GetAPIKeyFromURIPath(getHeader(req.Header, "X-Original-Uri"))
+			key = GetAPIKeyFromURIPath(getHeader(req.Header, HeaderXOriginalURI))
 		}
 
 		req = req.WithContext(context.WithValue(req.Context(), parsedAPIKeyCtxKey{}, key))

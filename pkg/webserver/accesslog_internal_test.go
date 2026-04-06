@@ -28,8 +28,8 @@ func TestResponseWriter(t *testing.T) {
 	rec := httptest.NewRecorder()
 	capWriter := &captureWriter{ResponseWriter: rec}
 
-	if capWriter.statusCode() != http.StatusOK {
-		t.Fatalf("statusCode before any write = %d, want 200", capWriter.statusCode())
+	if capWriter.statusCode() != "200" {
+		t.Fatalf("statusCode before any write = %s, want 200", capWriter.statusCode())
 	}
 
 	capWriter.WriteHeader(http.StatusTeapot)
@@ -57,8 +57,8 @@ func TestResponseWriter(t *testing.T) {
 		t.Fatalf("size = %d, want 2", capWriter.size)
 	}
 
-	if capWriter.statusCode() != http.StatusTeapot {
-		t.Fatalf("statusCode = %d, want %d", capWriter.statusCode(), http.StatusTeapot)
+	if capWriter.statusCode() != "418" {
+		t.Fatalf("statusCode = %s, want 418", capWriter.statusCode())
 	}
 }
 
@@ -77,8 +77,8 @@ func TestResponseWriter_WriteImpliesOK(t *testing.T) {
 		t.Fatalf("Write without WriteHeader: status = %d, want 200", capWriter.status)
 	}
 
-	if capWriter.statusCode() != http.StatusOK {
-		t.Fatalf("statusCode = %d, want 200", capWriter.statusCode())
+	if capWriter.statusCode() != "200" {
+		t.Fatalf("statusCode = %s, want 200", capWriter.statusCode())
 	}
 }
 
@@ -91,16 +91,16 @@ func TestWriteAccessLogLine(t *testing.T) {
 	req.RequestURI = "/p?q=1"
 	req.RemoteAddr = "192.0.2.1:9999"
 	req.Header.Set("User-Agent", "test-agent/1")
-	req.Header.Set("X-Server", "srv-99")
-	req.Header.Set("X-Original-Uri", "/api/v1/route/method/"+TestAccessLogAPIKey)
+	req.Header.Set(HeaderXServer, "srv-99")
+	req.Header.Set(HeaderXOriginalURI, "/api/v1/route/method/"+TestAccessLogAPIKey)
 
 	rec := httptest.NewRecorder()
 	capWriter := &captureWriter{ResponseWriter: rec}
 	capWriter.start = time.Now().Add(-elapsed)
-	capWriter.Header().Set("X-Username", "alice")
-	capWriter.Header().Set("X-Userid", "1001")
-	capWriter.Header().Set("Age", "60")
-	capWriter.Header().Set("X-Environment", "live")
+	capWriter.Header().Set(HeaderXUsername, "alice")
+	capWriter.Header().Set(HeaderXUserid, "1001")
+	capWriter.Header().Set(HeaderAge, "60")
+	capWriter.Header().Set(HeaderEnvironment, "live")
 	capWriter.WriteHeader(http.StatusOK)
 	_, _ = capWriter.Write([]byte("body"))
 
@@ -168,12 +168,12 @@ func TestWriteAccessLogLine_MaskedKeyFromResponseHeader(t *testing.T) {
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "http://x/", nil)
-	req.Header.Set("X-Server", "")
+	req.Header.Set(HeaderXServer, "")
 
 	rec := httptest.NewRecorder()
 	capWriter := &captureWriter{ResponseWriter: rec}
 	capWriter.start = start
-	capWriter.Header().Set("X-Api-Key", TestAccessLogAPIKey)
+	capWriter.Header().Set(HeaderXAPIKey, TestAccessLogAPIKey)
 
 	builder := &strings.Builder{}
 
@@ -210,19 +210,20 @@ func TestAccessLogWrap(t *testing.T) {
 
 	var dst bytes.Buffer
 
-	handler := accessLogWrap(http.HandlerFunc(func(resp http.ResponseWriter, _ *http.Request) {
-		resp.Header().Set("X-Username", "wrap-user")
-		resp.Header().Set("X-Userid", "55")
-		resp.Header().Set("Age", "3")
-		resp.Header().Set("X-Environment", "dev")
+	srv := &server{}
+	handler := srv.accessLogWrap(http.HandlerFunc(func(resp http.ResponseWriter, _ *http.Request) {
+		resp.Header().Set(HeaderXUsername, "wrap-user")
+		resp.Header().Set(HeaderXUserid, "55")
+		resp.Header().Set(HeaderAge, "3")
+		resp.Header().Set(HeaderEnvironment, "dev")
 		resp.WriteHeader(http.StatusNoContent)
 	}), &dst)
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://proxy.test/auth", nil)
 	req.RequestURI = "/auth"
 	req.RemoteAddr = "198.51.100.2:4444"
-	req.Header.Set("X-Forwarded-For", "203.0.113.5")
-	req.Header.Set("X-Server", "discord-srv")
+	req.Header.Set(HeaderXForwardedFor, "203.0.113.5")
+	req.Header.Set(HeaderXServer, "discord-srv")
 	req.Header.Set("User-Agent", "ua-wrap")
 
 	rec := httptest.NewRecorder()
@@ -255,8 +256,9 @@ func TestAccessLogWrap_MaskedKeyFromResponseHeader(t *testing.T) {
 
 	var dst bytes.Buffer
 
-	handler := accessLogWrap(http.HandlerFunc(func(resp http.ResponseWriter, _ *http.Request) {
-		resp.Header().Set("X-Api-Key", TestAccessLogAPIKey)
+	srv := &server{}
+	handler := srv.accessLogWrap(http.HandlerFunc(func(resp http.ResponseWriter, _ *http.Request) {
+		resp.Header().Set(HeaderXAPIKey, TestAccessLogAPIKey)
 		resp.WriteHeader(http.StatusUnauthorized)
 	}), &dst)
 

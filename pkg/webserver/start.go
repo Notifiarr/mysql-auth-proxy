@@ -27,6 +27,20 @@ const (
 	timeout       = 15 * time.Second
 )
 
+// Canonical HTTP Headers.
+const (
+	HeaderXAPIKey       = "X-Api-Key"  //nolint:gosec // not a cred.
+	HeaderXAPIKeys      = "X-Api-Keys" //nolint:gosec // not a cred.
+	HeaderXOriginalURI  = "X-Original-Uri"
+	HeaderXServer       = "X-Server"
+	HeaderXUsername     = "X-Username"
+	HeaderXUserid       = "X-Userid"
+	HeaderXForwardedFor = "X-Forwarded-For"
+	HeaderEnvironment   = "X-Environment"
+	HeaderContentType   = "Content-Type"
+	HeaderAge           = "Age"
+)
+
 // Config is the input data for the server.
 type Config struct {
 	*userinfo.Config // contains mysql host, user, pass, logger.
@@ -175,7 +189,7 @@ func (s *server) startWebServer() error {
 
 	s.server = &http.Server{
 		Addr:              s.ListenAddr,
-		Handler:           accessLogWrap(s.countRequests(mux), s.httpLog.Writer()),
+		Handler:           s.accessLogWrap(mux, s.httpLog.Writer()),
 		ReadTimeout:       timeout,
 		ReadHeaderTimeout: timeout,
 		WriteTimeout:      timeout,

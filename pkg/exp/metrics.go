@@ -143,3 +143,22 @@ func warmHTTPMetrics(metrics *Metrics) {
 		metrics.HTTPResponse.WithLabelValues(strconv.Itoa(code))
 	}
 }
+
+// CountRequest increments the appropriate HTTP request and response metrics for a web request.
+func (m *Metrics) CountRequest(req *http.Request, statusCode string) {
+	if m == nil {
+		return
+	}
+
+	m.HTTPRequests.WithLabelValues(HTTPEventTotal).Inc()
+
+	if req.Method == http.MethodDelete {
+		m.HTTPRequests.WithLabelValues(HTTPEventDelete).Inc()
+	}
+
+	if _, ok := req.Header["X-Server"]; ok {
+		m.HTTPRequests.WithLabelValues(HTTPEventXServer).Inc()
+	}
+
+	m.HTTPResponse.WithLabelValues(statusCode).Inc()
+}
