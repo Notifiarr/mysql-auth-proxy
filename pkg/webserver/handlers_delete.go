@@ -21,7 +21,7 @@ type noExists struct {
 // @Tags         auth
 // @Produce      json
 // @Param        X-Server   header string true "Discord Server ID to delete."
-// @Param        X-API-Keys header string true "Comma separated list of API keys to delete."
+// @Param        X-Api-Keys header string true "Comma separated list of API keys to delete."
 // @Success      200  {object} []cache.Item{data=userinfo.UserInfo} "List of cached info for API Keys or servers that were deleted."
 // @Success      208  {object} noExists "exists: false is returned when a missing server ID is provided."
 // @Failure      401  {object} string "invalid request"
@@ -29,7 +29,7 @@ type noExists struct {
 func (s *server) handleDelSrv(resp http.ResponseWriter, req *http.Request) {
 	user := userinfo.DefaultUser()
 
-	serverID := req.Header.Get("X-Server")
+	serverID := getHeader(req.Header, HeaderXServer)
 
 	item := s.servers.Get(serverID)
 	if item != nil && item.Data != nil {
@@ -42,13 +42,13 @@ func (s *server) handleDelSrv(resp http.ResponseWriter, req *http.Request) {
 
 	// These headers are mostly for logs.
 	if user != nil && user.UserID != userinfo.DefaultUserID {
-		resp.Header().Set("X-Userid", user.UserID)
-		resp.Header().Set("X-Username", user.Username)
+		resp.Header().Set(HeaderXUserid, user.UserID)
+		resp.Header().Set(HeaderXUsername, user.Username)
 	}
 
-	resp.Header().Set("X-Environment", "deleted")
-	resp.Header().Set("Content-Type", "application/json")
-	resp.Header().Set("Age", "1")
+	resp.Header().Set(HeaderEnvironment, "deleted")
+	resp.Header().Set(HeaderContentType, "application/json")
+	resp.Header().Set(HeaderAge, "1")
 
 	var reply any = noExists{}
 	if item != nil {
@@ -65,7 +65,7 @@ func (s *server) handleDelSrv(resp http.ResponseWriter, req *http.Request) {
 }
 
 func (s *server) handleDelKey(resp http.ResponseWriter, req *http.Request) {
-	keys := strings.Split(req.Header.Get("X-Api-Keys"), ",")
+	keys := strings.Split(getHeader(req.Header, HeaderXAPIKeys), ",")
 	infos := make([]*cache.Item, len(keys))
 	user := userinfo.DefaultUser()
 
@@ -79,14 +79,14 @@ func (s *server) handleDelKey(resp http.ResponseWriter, req *http.Request) {
 
 		// Something is better than nothing.
 		if user != nil && user.UserID != userinfo.DefaultUserID {
-			resp.Header().Set("X-Userid", user.UserID)
-			resp.Header().Set("X-Username", user.Username)
+			resp.Header().Set(HeaderXUserid, user.UserID)
+			resp.Header().Set(HeaderXUsername, user.Username)
 		}
 	}
 
-	resp.Header().Set("X-Environment", "deleted")
-	resp.Header().Set("Content-Type", "application/json")
-	resp.Header().Set("Age", strconv.Itoa(len(infos)))
+	resp.Header().Set(HeaderEnvironment, "deleted")
+	resp.Header().Set(HeaderContentType, "application/json")
+	resp.Header().Set(HeaderAge, strconv.Itoa(len(infos)))
 	resp.WriteHeader(http.StatusOK)
 
 	err := json.NewEncoder(resp).Encode(infos)

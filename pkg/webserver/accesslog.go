@@ -24,7 +24,7 @@ type captureWriter struct {
 }
 
 func (c *captureWriter) WriteHeader(code int) {
-	if c.status == 0 {
+	if c.status == 0 { // cannot set it twice.
 		c.status = code
 	}
 
@@ -32,7 +32,7 @@ func (c *captureWriter) WriteHeader(code int) {
 }
 
 func (c *captureWriter) Write(p []byte) (int, error) {
-	if c.status == 0 {
+	if c.status == 0 { // if you write without setting the status, it's a 200.
 		c.status = http.StatusOK
 	}
 
@@ -42,36 +42,28 @@ func (c *captureWriter) Write(p []byte) (int, error) {
 	return n, err //nolint:wrapcheck // delegate to underlying ResponseWriter
 }
 
-func (c *captureWriter) statusCode() int {
+func (c *captureWriter) statusCode() string {
 	if c.status == 0 {
-		return http.StatusOK
+		return "200"
 	}
 
-	return c.status
+	return strconv.Itoa(c.status)
 }
 
-// Get returns the first value for a response header field. key must already be in
-// canonical form (http.CanonicalHeaderKey). Unlike Header.Get it does not allocate
-// or re-canonicalize key on each call.
-func (c *captureWriter) Get(key string) string {
-	if v := c.Header()[key]; len(v) > 0 {
-		return v[0]
-	}
-
-	return ""
+// accessLogWrap writes one Apache-style line per request to dst (same field order as the former alFmt)
+// and records HTTP request/response Prometheus counters when metrics is non-nil.
+func (s *server) accessLogWrap(next http.Handler, dst io.Writer) http.Handler {
+	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		capture := &captureWriter{ResponseWriter: resp, start: time.Now()}
+		next.ServeHTTP(capture, req)
+		capture.writeAccessLogLine(req, dst)
+		// Update Prometheus metrics for the request.
+		s.metrics.CountRequest(req, capture.statusCode())
+	})
 }
 
 //nolint:gochecknoglobals // one pool per process for hot-path access log strings.Builder reuse
 var alBuilder = sync.Pool{New: func() any { return &strings.Builder{} }}
-
-// accessLogWrap writes one Apache-style line per request to dst (same field order as the former alFmt).
-func accessLogWrap(next http.Handler, dst io.Writer) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		capture := &captureWriter{ResponseWriter: w, start: time.Now()}
-		next.ServeHTTP(capture, req)
-		capture.writeAccessLogLine(req, dst)
-	})
-}
 
 func (c *captureWriter) writeAccessLogLine(req *http.Request, dst io.Writer) {
 	//nolint:forcetypeassert
@@ -85,6 +77,7 @@ func (c *captureWriter) writeAccessLogLine(req *http.Request, dst io.Writer) {
 }
 
 func (c *captureWriter) writeAccessLogLinePrefix(builder *strings.Builder, req *http.Request) {
+	respHeader := c.Header()
 	// %V
 	builder.WriteString(req.Host)
 	builder.WriteByte(' ')
@@ -93,10 +86,10 @@ func (c *captureWriter) writeAccessLogLinePrefix(builder *strings.Builder, req *
 	builder.WriteByte(' ')
 	// "%{X-Username}o"
 	builder.WriteByte('"')
-	builder.WriteString(c.Get("X-Username"))
+	builder.WriteString(getHeader(respHeader, HeaderXUsername))
 	builder.WriteString("\" ")
 	// %{X-UserID}o
-	builder.WriteString(c.Get("X-Userid"))
+	builder.WriteString(getHeader(respHeader, HeaderXUserid))
 	builder.WriteByte(' ')
 	// %t — [02/Jan/2006:15:04:05 -0700]
 	builder.WriteByte('[')
@@ -115,7 +108,7 @@ func (c *captureWriter) writeAccessLogLinePrefix(builder *strings.Builder, req *
 
 	builder.WriteString(" HTTP/1.1\" ")
 	// %>s
-	builder.WriteString(strconv.Itoa(c.statusCode()))
+	builder.WriteString(c.statusCode())
 	builder.WriteByte(' ')
 	// %b — response body size (0 when none).
 	builder.WriteString(strconv.FormatInt(c.size, 10))
@@ -130,28 +123,33 @@ func (c *captureWriter) writeAccessLogLinePrefix(builder *strings.Builder, req *
 }
 
 func (c *captureWriter) writeAccessLogLineTail(builder *strings.Builder, req *http.Request) {
+	respHeader := c.Header()
 	builder.WriteString(" req:")
 	// %{ms}T — elapsed milliseconds (same as apache-logformat request duration).
 	builder.WriteString(strconv.FormatInt(time.Since(c.start).Milliseconds(), 10))
 	builder.WriteString("ms age:")
-	builder.WriteString(c.Get("Age"))
+	builder.WriteString(getHeader(respHeader, HeaderAge))
 	builder.WriteString(" env:")
-	builder.WriteString(c.Get("X-Environment"))
+	builder.WriteString(getHeader(respHeader, HeaderEnvironment))
 	builder.WriteString(" key:")
 
-	masked, keyLenStr := c.maskedAPIKeyFromResponse()
+	masked, keyLenStr := maskedAPIKeyForLog(req, respHeader)
 	builder.WriteString(masked)
 	builder.WriteByte('(')
 	builder.WriteString(keyLenStr)
 	builder.WriteString(") \"srv:")
-	builder.WriteString(req.Header.Get("X-Server"))
+	builder.WriteString(getHeader(req.Header, HeaderXServer))
 	builder.WriteString("\"\n")
 }
 
-// maskedAPIKeyFromResponse returns maskAPIKey(w X-Api-Key) for the access log, or ("", "")
-// when the handler did not set that response header.
-func (c *captureWriter) maskedAPIKeyFromResponse() (string, string) {
-	key := c.Get("X-Api-Key")
+// maskedAPIKeyForLog returns maskAPIKey(X-Api-Key) from the response, else from the parsed request
+// context, or ("", "") if neither is set.
+func maskedAPIKeyForLog(req *http.Request, resp http.Header) (string, string) {
+	key := getHeader(resp, HeaderXAPIKey)
+	if key == "" {
+		key = apiKeyFromRequest(req)
+	}
+
 	if key == "" {
 		return "", ""
 	}
@@ -164,7 +162,7 @@ func (c *captureWriter) maskedAPIKeyFromResponse() (string, string) {
 // If the path has fewer than keyPosition+1 segments, it returns the full path (still without query).
 // When X-Original-Uri is missing, empty, or only a query string, it returns "".
 func RefererPathForLog(header http.Header) string {
-	pathPart, _, _ := strings.Cut(header.Get("X-Original-Uri"), "?")
+	pathPart, _, _ := strings.Cut(getHeader(header, HeaderXOriginalURI), "?")
 	if pathPart == "" {
 		return ""
 	}
@@ -189,7 +187,7 @@ func RefererPathForLog(header http.Header) string {
 
 // ClientIPForLog returns the client IP for access logs (same rules as the former fixForwardedFor middleware).
 func ClientIPForLog(req *http.Request) string {
-	forwarded := req.Header.Get("X-Forwarded-For")
+	forwarded := getHeader(req.Header, HeaderXForwardedFor)
 	if forwarded == "" {
 		host, _, err := net.SplitHostPort(req.RemoteAddr)
 		if err != nil {

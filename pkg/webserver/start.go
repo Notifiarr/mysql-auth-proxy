@@ -14,7 +14,6 @@ import (
 	"github.com/Notifiarr/mysql-auth-proxy/docs"
 	"github.com/Notifiarr/mysql-auth-proxy/pkg/exp"
 	"github.com/Notifiarr/mysql-auth-proxy/pkg/userinfo"
-	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golift.io/cache"
 	"golift.io/cnfg"
@@ -26,6 +25,20 @@ import (
 const (
 	pruneInterval = 3 * time.Minute
 	timeout       = 15 * time.Second
+)
+
+// Canonical HTTP Headers.
+const (
+	HeaderXAPIKey       = "X-Api-Key"  //nolint:gosec // not a cred.
+	HeaderXAPIKeys      = "X-Api-Keys" //nolint:gosec // not a cred.
+	HeaderXOriginalURI  = "X-Original-Uri"
+	HeaderXServer       = "X-Server"
+	HeaderXUsername     = "X-Username"
+	HeaderXUserid       = "X-Userid"
+	HeaderXForwardedFor = "X-Forwarded-For"
+	HeaderEnvironment   = "X-Environment"
+	HeaderContentType   = "Content-Type"
+	HeaderAge           = "Age"
 )
 
 // Config is the input data for the server.
@@ -45,7 +58,6 @@ type Config struct {
 // server holds the running data.
 type server struct {
 	*Config
-	*mux.Router
 
 	users   *cache.Cache
 	servers *cache.Cache
@@ -56,8 +68,6 @@ type server struct {
 	// noAuthMu protects NoAuthPaths on the embedded Config (RequiresAPIKey, reload, showConfig).
 	noAuthMu sync.RWMutex
 	metrics  *exp.Metrics
-	// apiKeyVarsPool backs mux.SetURLVars in parseAPIKey (avoids a map alloc per request).
-	apiKeyVarsPool sync.Pool
 }
 
 // ErrNoSQLConfig is returned if no mysql config is present.
@@ -123,8 +133,6 @@ func Start(config *Config) error {
 }
 
 func (s *server) start() error {
-	s.apiKeyVarsPool = sync.Pool{New: func() any { return make(map[string]string, 1) }}
-
 	s.users = cache.New(cache.Config{
 		PruneInterval:   pruneInterval,
 		RequestAccuracy: time.Second,
@@ -152,38 +160,36 @@ func (s *server) start() error {
 	s.Printf("HTTP listening at: %s", s.ListenAddr)
 
 	s.ui = info
-	s.Router = mux.NewRouter()
 
 	return s.startWebServer()
 }
 
 func (s *server) startWebServer() error {
-	s.Use(s.countRequests)
-	// api docs
-	s.PathPrefix("/docs/").Handler(http.StripPrefix("/docs/", http.FileServer(docs.AssetFS())))
-	s.HandleFunc("/swagger.json", s.handlerSwaggerDoc).Methods(http.MethodGet)
-	// human handlers
-	s.HandleFunc("/reload", s.reloadConfig).Methods(http.MethodGet)
-	s.HandleFunc("/stats/config", s.showConfig).Methods(http.MethodGet)
-	s.HandleFunc("/stats/keys", s.handeUserList).Methods(http.MethodGet)
-	s.HandleFunc("/stats/servers", s.handeSrvList).Methods(http.MethodGet)
-	s.HandleFunc("/stats/key/{key}", s.handleUserInfo).Methods(http.MethodGet)
-	s.HandleFunc("/stats/server/{key}", s.handleSrvInfo).Methods(http.MethodGet)
-	// delete handlers
-	s.HandleFunc("/auth", s.handleDelKey).Methods(http.MethodDelete).Headers("X-API-Keys", "")
-	s.HandleFunc("/auth", s.handleDelSrv).Methods(http.MethodDelete).Headers("X-Server", "")
-	// nginx handlers
-	s.HandleFunc("/auth", s.handleServer).Methods(http.MethodGet, http.MethodHead).
-		Headers("X-Server", "", "X-API-Key", s.Password)
-	s.Handle("/auth", s.parseAPIKey(http.HandlerFunc(s.handleGetKey))).
-		Methods(http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut)
-	s.Handle("/metrics", promhttp.Handler())
-	// default: go away
-	s.HandleFunc("/", s.noKeyReply)
+	mux := http.NewServeMux()
+	docsHandler := http.StripPrefix("/docs/", http.FileServer(docs.AssetFS()))
+	mux.Handle("GET /docs/", docsHandler)
+	mux.Handle("HEAD /docs/", docsHandler)
+	mux.HandleFunc("GET /swagger.json", s.handlerSwaggerDoc)
+	mux.HandleFunc("GET /reload", s.reloadConfig)
+	mux.HandleFunc("GET /stats/config", s.showConfig)
+	mux.HandleFunc("GET /stats/keys", s.handeUserList)
+	mux.HandleFunc("GET /stats/servers", s.handeSrvList)
+	mux.HandleFunc("GET /stats/key/{key}", s.handleUserInfo)
+	mux.HandleFunc("GET /stats/server/{key}", s.handleSrvInfo)
+	mux.HandleFunc("/auth", s.handleAuth)
+	mux.Handle("GET /metrics", promhttp.Handler())
+
+	for _, method := range []string{
+		http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut,
+		http.MethodPatch, http.MethodDelete, http.MethodOptions,
+		http.MethodConnect, http.MethodTrace,
+	} {
+		mux.HandleFunc(method+" /{$}", s.noKeyReply)
+	}
 
 	s.server = &http.Server{
 		Addr:              s.ListenAddr,
-		Handler:           accessLogWrap(s.Router, s.httpLog.Writer()),
+		Handler:           s.accessLogWrap(mux, s.httpLog.Writer()),
 		ReadTimeout:       timeout,
 		ReadHeaderTimeout: timeout,
 		WriteTimeout:      timeout,
