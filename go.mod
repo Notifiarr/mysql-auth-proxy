@@ -3,7 +3,7 @@ module github.com/Notifiarr/mysql-auth-proxy
 go 1.26.1
 
 require (
-	github.com/go-sql-driver/mysql v1.9.3
+	github.com/go-sql-driver/mysql v1.10.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/swaggo/swag v1.16.6
 	golift.io/cache v1.1.0
