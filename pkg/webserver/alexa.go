@@ -17,6 +17,18 @@ import (
 // force the proxy to buffer an unbounded payload.
 const alexaBodyLimit = 1 << 20
 
+// alexaCacheFor is how long a successful token lookup may be reused.
+// It is also a ceiling: the entry is dropped at access_expires when that is sooner.
+// The short window is what makes an unlink or a rotated token fail closed
+// without waiting for the original expiry.
+const alexaCacheFor = time.Minute
+
+// alexaCached is a successful lookup plus the time it must be rechecked.
+type alexaCached struct {
+	user    *userinfo.UserInfo
+	expires time.Time
+}
+
 // alexaSkillRequest is the slice of an Alexa request that carries the account link.
 // Amazon sends accessToken on session.user, and copies it to context.System.user.
 type alexaSkillRequest struct {
@@ -81,33 +93,63 @@ func (s *server) alexaDenied(resp http.ResponseWriter) {
 
 func (s *server) lookupAlexa(resp http.ResponseWriter, req *http.Request, token string) {
 	start := time.Now()
-	user, when, hit := cacheUserFromGetInto(s.alexa, token)
 
-	var err error
-
-	if !hit {
-		when = start
-		user, err = s.ui.GetAlexa(req.Context(), token)
-		s.cacheAlexa(token, user, err)
-
-		if user == nil {
-			user = userinfo.DefaultUser()
-			s.Println("[ERROR] alexa user missing from cache or lookup")
-		}
+	if user, when, hit := s.cachedAlexa(token); hit {
+		s.writeAuthResult(resp, req, "alexa", user, nil, when, start)
+		return
 	}
 
-	s.writeAuthResult(resp, req, "alexa", user, err, when, start)
+	user, expires, err := s.ui.GetAlexa(req.Context(), token)
+	s.cacheAlexa(token, user, expires, err)
+
+	if user == nil {
+		user = userinfo.DefaultUser()
+		s.Println("[ERROR] alexa user missing from cache or lookup")
+	}
+
+	s.writeAuthResult(resp, req, "alexa", user, err, start, start)
 }
 
-func (s *server) cacheAlexa(token string, user *userinfo.UserInfo, err error) {
-	switch {
-	case errors.Is(err, userinfo.ErrNoUser):
-		s.alexa.Save(token, user, cache.Options{Prune: true})
-	case err != nil:
-		s.Printf("[ERROR] %v", err)
-	default:
-		s.alexa.Save(token, user, cache.Options{Prune: false})
+// cachedAlexa returns a lookup that is still inside its recheck window.
+func (s *server) cachedAlexa(token string) (*userinfo.UserInfo, time.Time, bool) {
+	if s.alexa == nil {
+		return nil, time.Time{}, false
 	}
+
+	var snap cache.Item
+	if !s.alexa.GetInto(token, &snap) || snap.Data == nil {
+		return nil, time.Time{}, false
+	}
+
+	entry, ok := snap.Data.(*alexaCached)
+	if !ok || entry == nil || entry.user == nil || !time.Now().Before(entry.expires) {
+		return nil, time.Time{}, false
+	}
+
+	return entry.user, snap.Time, true
+}
+
+func (s *server) cacheAlexa(token string, user *userinfo.UserInfo, expires time.Time, err error) {
+	if err != nil || user == nil {
+		if err != nil && !errors.Is(err, userinfo.ErrNoUser) {
+			s.Printf("[ERROR] %v", err)
+		}
+
+		return
+	}
+
+	until := alexaCacheDeadline(expires, time.Now())
+	s.alexa.Save(token, &alexaCached{user: user, expires: until}, cache.Options{Expire: until})
+}
+
+// alexaCacheDeadline is the sooner of the token expiry and now plus alexaCacheFor.
+func alexaCacheDeadline(accessExpires, now time.Time) time.Time {
+	deadline := now.Add(alexaCacheFor)
+	if !accessExpires.IsZero() && accessExpires.Before(deadline) {
+		return accessExpires
+	}
+
+	return deadline
 }
 
 // alexaAccessToken reads session.user.accessToken, then context.System.user.accessToken.

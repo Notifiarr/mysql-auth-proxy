@@ -7,6 +7,10 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/Notifiarr/mysql-auth-proxy/pkg/userinfo"
+	"golift.io/cache"
 )
 
 func TestAlexaAccessToken(t *testing.T) {
@@ -99,6 +103,37 @@ func TestAuthAlexaRouteDoesNotHitAPIKeyAuth(t *testing.T) {
 
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204", rec.Code)
+	}
+}
+
+func TestAlexaCacheDeadline(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	soon := now.Add(10 * time.Second)
+	later := now.Add(2 * time.Hour)
+
+	if got := alexaCacheDeadline(soon, now); !got.Equal(soon) {
+		t.Fatalf("deadline = %s, want token expiry %s", got, soon)
+	}
+
+	if got := alexaCacheDeadline(later, now); !got.Equal(now.Add(alexaCacheFor)) {
+		t.Fatalf("deadline = %s, want %s", got, now.Add(alexaCacheFor))
+	}
+}
+
+func TestCachedAlexa_pastDeadlineIsMiss(t *testing.T) {
+	t.Parallel()
+
+	store := cache.New(cache.Config{PruneInterval: time.Hour})
+	t.Cleanup(func() { store.Stop(false) })
+
+	past := time.Now().Add(-time.Second)
+	store.Save("tok", &alexaCached{user: userinfo.DefaultUser(), expires: past}, cache.Options{Expire: past})
+
+	s := &server{alexa: store}
+	if _, _, hit := s.cachedAlexa("tok"); hit {
+		t.Fatal("expected expired cache entry to miss")
 	}
 }
 

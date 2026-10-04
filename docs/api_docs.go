@@ -150,6 +150,48 @@ const docTemplateapi = `{
                 }
             }
         },
+        "/auth/alexa": {
+            "post": {
+                "description": "Authorize an Alexa skill request. The body is the Alexa JSON request. The link token is read from session.user.accessToken, then context.System.user.accessToken. A current alexa_oauth row returns the same headers as /auth.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Authorize an Alexa access token",
+                "responses": {
+                    "200": {
+                        "description": "Body is empty on success, check headers.",
+                        "headers": {
+                            "Age": {
+                                "type": "string",
+                                "description": "How long this information has been in the cache."
+                            },
+                            "X-Api-Key": {
+                                "type": "string",
+                                "description": "Account API key for the linked user."
+                            },
+                            "X-Environment": {
+                                "type": "string",
+                                "description": "Environment: live, dev, nightly, etc."
+                            },
+                            "X-UserID": {
+                                "type": "string",
+                                "description": "MySQL ID for the linked user."
+                            },
+                            "X-Username": {
+                                "type": "string",
+                                "description": "Username for the linked user."
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "missing, unknown, or expired Alexa access token"
+                    }
+                }
+            }
+        },
         "/metrics": {
             "get": {
                 "description": "Retrieve internal application metrics.",
