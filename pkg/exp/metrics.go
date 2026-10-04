@@ -71,30 +71,32 @@ type Metrics struct {
 // @Success      200  {object} any "Auth Proxy Prometheus metrics"
 // @Router       /metrics [get]
 func GetMetrics(collector *CacheCollector) *Metrics {
+	const cacheLabel = "cache"
+
 	start := time.Now()
-	collector.counter = prometheus.NewDesc("authproxy_cache_counters", "All cache counters", []string{"cache", "counter"}, nil)
-	collector.gauge = prometheus.NewDesc("authproxy_cache_gauges", "All cache gauges", []string{"cache", "gauge"}, nil)
+	collector.counter = prometheus.NewDesc("authproxy_cache_counters", "All cache counters", []string{cacheLabel, "counter"}, nil)
+	collector.gauge = prometheus.NewDesc("authproxy_cache_gauges", "All cache gauges", []string{cacheLabel, "gauge"}, nil)
 	prometheus.MustRegister(collector)
 
 	metrics := &Metrics{
 		QueryErrors: promauto.NewCounterVec(prometheus.CounterOpts{
 			Name: "authproxy_db_query_errors_total",
 			Help: "The total number of DB query errors",
-		}, []string{"cache"}),
+		}, []string{cacheLabel}),
 		QueryMissing: promauto.NewCounterVec(prometheus.CounterOpts{
 			Name: "authproxy_db_query_missing_total",
 			Help: "The total number of DB queries with missing user",
-		}, []string{"cache"}),
+		}, []string{cacheLabel}),
 		QueryTime: promauto.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "authproxy_db_query_time_seconds",
 			Help:    "The duration of database queries",
 			Buckets: []float64{0.001, 0.005, 0.025, .1, .5, 1, 3},
-		}, []string{"cache"}),
+		}, []string{cacheLabel}),
 		ReqTime: promauto.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "authproxy_request_time_seconds",
 			Help:    "The duration of auth requests",
 			Buckets: []float64{0.001, 0.005, 0.025, .1, .5, 1, 3},
-		}, []string{"cache"}),
+		}, []string{cacheLabel}),
 		Uptime: promauto.NewCounterFunc(prometheus.CounterOpts{
 			Name: "authproxy_uptime_seconds_total",
 			Help: "Seconds the auth proxy has been running",

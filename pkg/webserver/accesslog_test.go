@@ -36,8 +36,8 @@ func TestRefererPathForLog(t *testing.T) {
 		},
 		{
 			name:    "too few segments returns path only",
-			origURI: "/api/v1/foo",
-			want:    "/api/v1/foo",
+			origURI: "/api/v1/barr",
+			want:    "/api/v1/barr",
 		},
 		{
 			name:    "double slash adds empty segment so keyPosition 5 is method not key",
