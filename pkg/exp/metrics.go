@@ -116,7 +116,7 @@ func GetMetrics(collector *CacheCollector) *Metrics {
 
 // warmHTTPMetrics registers label combinations up front to reduce allocations on the hot path.
 func warmHTTPMetrics(metrics *Metrics) {
-	for _, cache := range []string{"users", "servers"} {
+	for _, cache := range []string{"users", "servers", "alexa"} {
 		metrics.QueryErrors.WithLabelValues(cache)
 		metrics.QueryMissing.WithLabelValues(cache)
 		metrics.QueryTime.WithLabelValues(cache)
