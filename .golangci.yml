@@ -3,7 +3,9 @@ linters:
   default: all
   disable:
     - depguard
+    - gomodguard
     - exhaustruct
+    - exhaustruct_v5
     - nlreturn
     - wsl
     - funcorder

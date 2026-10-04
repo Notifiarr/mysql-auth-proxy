@@ -8,6 +8,10 @@ import (
 	"github.com/Notifiarr/mysql-auth-proxy/pkg/webserver"
 )
 
+// pathWithTooFewSegments stops before the API-key position, so both helpers
+// return it unchanged (or empty, for the key).
+const pathWithTooFewSegments = "/api/v1/foo"
+
 func TestRefererPathForLog(t *testing.T) {
 	t.Parallel()
 
@@ -36,8 +40,8 @@ func TestRefererPathForLog(t *testing.T) {
 		},
 		{
 			name:    "too few segments returns path only",
-			origURI: "/api/v1/foo",
-			want:    "/api/v1/foo",
+			origURI: pathWithTooFewSegments,
+			want:    pathWithTooFewSegments,
 		},
 		{
 			name:    "double slash adds empty segment so keyPosition 5 is method not key",
@@ -104,7 +108,7 @@ func TestGetAPIKeyFromURIPath(t *testing.T) {
 		},
 		{
 			name:    "too few segments",
-			pathStr: "/api/v1/foo",
+			pathStr: pathWithTooFewSegments,
 			want:    "",
 		},
 		{

@@ -61,6 +61,7 @@ type server struct {
 
 	users   *cache.Cache
 	servers *cache.Cache
+	alexa   *cache.Cache
 	ui      *userinfo.UI
 	httpLog *log.Logger
 	server  *http.Server
@@ -146,9 +147,17 @@ func (s *server) start() error {
 	})
 	defer s.servers.Stop(false)
 
+	s.alexa = cache.New(cache.Config{
+		PruneInterval:   pruneInterval,
+		RequestAccuracy: time.Second,
+		Shards:          s.CacheShards,
+	})
+	defer s.alexa.Stop(false)
+
 	s.metrics = exp.GetMetrics(&exp.CacheCollector{Stats: exp.CacheList{
 		"servers": s.servers.Stats,
 		"users":   s.users.Stats,
+		"alexa":   s.alexa.Stats,
 	}})
 
 	info, err := userinfo.New(s.Config.Config, s.metrics)
@@ -177,6 +186,7 @@ func (s *server) startWebServer() error {
 	mux.HandleFunc("GET /stats/key/{key}", s.handleUserInfo)
 	mux.HandleFunc("GET /stats/server/{key}", s.handleSrvInfo)
 	mux.HandleFunc("/auth", s.handleAuth)
+	mux.HandleFunc("/auth/alexa", s.handleAlexa)
 	mux.Handle("GET /metrics", promhttp.Handler())
 
 	for _, method := range []string{
